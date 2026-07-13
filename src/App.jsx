@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { ChevronDown, Check, ArrowLeft, Dumbbell, Clock3, History, Scale, TrendingUp, TrendingDown, ClipboardCopy } from "lucide-react";
+import { ChevronDown, Check, ArrowLeft, Dumbbell, Clock3, History, Scale, TrendingUp, TrendingDown, ClipboardCopy, Trash2 } from "lucide-react";
 
 const STORAGE_KEY = "workout-data";
 
@@ -215,6 +215,13 @@ export default function WorkoutTracker() {
     setScreen("session");
   };
 
+  const deleteSession = (session) => {
+    const nextSessions = sessions.filter((s) => !(s.date === session.date && s.planId === session.planId));
+    setSessions(nextSessions);
+    persist(lastValues, nextSessions, bodyweight);
+    setScreen("home");
+  };
+
   const setsLoggedCount = (exId) => (entries[exId] || []).filter((s) => s.weight !== "" || s.reps !== "").length;
 
   const handleExport = async () => {
@@ -273,6 +280,7 @@ export default function WorkoutTracker() {
           session={viewingSession}
           bodyweight={bodyweight}
           onBack={() => setScreen("home")}
+          onDelete={deleteSession}
         />
       )}
     </div>
@@ -471,9 +479,16 @@ function WorkoutScreen({ plan, entries, expanded, lastValues, onToggle, onUpdate
   );
 }
 
-function SessionDetailScreen({ session, bodyweight, onBack }) {
+function SessionDetailScreen({ session, bodyweight, onBack, onDelete }) {
   const data = PLANS[session.planId];
   const bwForDate = bodyweight.find((b) => b.date === session.date && b.weight !== "");
+
+  const handleDelete = () => {
+    const ok = window.confirm(
+      `Delete your Day ${session.planId} log from ${formatDate(session.date)}? This can't be undone.`
+    );
+    if (ok) onDelete(session);
+  };
 
   return (
     <div className="wt-workout">
@@ -534,6 +549,11 @@ function SessionDetailScreen({ session, bodyweight, onBack }) {
           <div className="wt-bw-summary-value">{bwForDate.weight} kg</div>
         </div>
       )}
+
+      <button className="wt-delete-btn" onClick={handleDelete}>
+        <Trash2 size={14} />
+        Delete this session
+      </button>
     </div>
   );
 }
@@ -625,6 +645,9 @@ const CSS = `
   .wt-input:focus { outline: none; border-color: ${COLORS.accent}; }
   .wt-x { color: ${COLORS.textDim}; font-size: 12px; flex-shrink: 0; }
   .wt-footer-note { text-align: center; font-size: 11px; color: ${COLORS.textDim}; margin-top: 18px; }
+
+  .wt-delete-btn { margin: 20px 16px 0; width: calc(100% - 32px); display: flex; align-items: center; justify-content: center; gap: 8px; background: none; border: 1px solid rgba(196,105,79,0.3); color: #C4694F; font-size: 12.5px; font-weight: 600; padding: 12px; border-radius: 12px; cursor: pointer; }
+  .wt-delete-btn:active { background: rgba(196,105,79,0.1); }
 
   input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 `;
