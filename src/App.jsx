@@ -116,8 +116,9 @@ async function copyToClipboard(text) {
 }
 
 export default function WorkoutTracker() {
-  const [screen, setScreen] = useState("home"); // home | workout
+  const [screen, setScreen] = useState("home"); // home | workout | session
   const [plan, setPlan] = useState(null);
+  const [viewingSession, setViewingSession] = useState(null);
   const [entries, setEntries] = useState({});
   const [expanded, setExpanded] = useState({});
   const [lastValues, setLastValues] = useState({});
@@ -209,6 +210,11 @@ export default function WorkoutTracker() {
 
   const toggleExpand = (exId) => setExpanded((prev) => ({ ...prev, [exId]: !prev[exId] }));
 
+  const openSession = (session) => {
+    setViewingSession(session);
+    setScreen("session");
+  };
+
   const setsLoggedCount = (exId) => (entries[exId] || []).filter((s) => s.weight !== "" || s.reps !== "").length;
 
   const handleExport = async () => {
@@ -245,8 +251,9 @@ export default function WorkoutTracker() {
           onExport={handleExport}
           copyState={copyState}
           hasData={sessions.length > 0 || bodyweight.length > 0}
+          onOpenSession={openSession}
         />
-      ) : (
+      ) : screen === "workout" ? (
         <WorkoutScreen
           plan={plan}
           entries={entries}
@@ -261,12 +268,18 @@ export default function WorkoutTracker() {
           bodyweightValue={todaysBodyweight}
           onBodyweightChange={updateBodyweight}
         />
+      ) : (
+        <SessionDetailScreen
+          session={viewingSession}
+          bodyweight={bodyweight}
+          onBack={() => setScreen("home")}
+        />
       )}
     </div>
   );
 }
 
-function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, hasData }) {
+function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, hasData, onOpenSession }) {
   const sortedBW = [...bodyweight].filter((b) => b.weight !== "").sort((a, b) => (a.date < b.date ? 1 : -1));
   const latestBW = sortedBW[0];
   const prevBW = sortedBW[1];
@@ -315,11 +328,11 @@ function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, h
             const total = PLANS[s.planId].exercises.length;
             const done = Object.values(s.entries).filter((sets) => sets.some((x) => x.weight !== "" || x.reps !== "")).length;
             return (
-              <div key={s.date + s.planId} className="wt-recent-row">
+              <button key={s.date + s.planId} className="wt-recent-row" onClick={() => onOpenSession(s)}>
                 <span className="wt-recent-date">{formatDate(s.date)}</span>
                 <span className="wt-recent-plan">Day {s.planId}</span>
                 <span className="wt-recent-progress">{done}/{total} logged</span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -458,6 +471,73 @@ function WorkoutScreen({ plan, entries, expanded, lastValues, onToggle, onUpdate
   );
 }
 
+function SessionDetailScreen({ session, bodyweight, onBack }) {
+  const data = PLANS[session.planId];
+  const bwForDate = bodyweight.find((b) => b.date === session.date && b.weight !== "");
+
+  return (
+    <div className="wt-workout">
+      <div className="wt-header">
+        <button className="wt-back" onClick={onBack} aria-label="Back">
+          <ArrowLeft size={20} />
+        </button>
+        <div className="wt-header-mid">
+          <span className="wt-header-plan">Day {session.planId} · {formatDate(session.date)}</span>
+          <span className="wt-header-sub">{data.subtitle}</span>
+        </div>
+      </div>
+
+      <div className="wt-list">
+        {data.exercises.map((ex) => {
+          const sets = session.entries[ex.id] || [];
+          return (
+            <div key={ex.id} className="wt-card">
+              <div className="wt-card-head wt-card-head-static">
+                <div className="wt-card-head-left">
+                  <div className="wt-card-name">{ex.name}</div>
+                  <div className="wt-card-target">
+                    {ex.mode === "time" ? <Clock3 size={12} /> : <Dumbbell size={12} />}
+                    {ex.sets} × {ex.target}
+                  </div>
+                </div>
+              </div>
+              <div className="wt-card-body">
+                <div className="wt-sets">
+                  {sets.map((set, idx) => {
+                    const isLogged = set.weight !== "" || set.reps !== "";
+                    return (
+                      <div className="wt-set-row" key={idx}>
+                        <span className="wt-set-label">Set {idx + 1}</span>
+                        <span className={`wt-set-readout ${isLogged ? "" : "empty"}`}>
+                          {!isLogged
+                            ? "not logged"
+                            : ex.mode === "time"
+                            ? `${set.reps || "—"} sec`
+                            : `${set.weight || "—"} kg × ${set.reps || "—"}`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {bwForDate && (
+        <div className="wt-bw-card">
+          <div className="wt-bw-head">
+            <Scale size={14} />
+            <span>Bodyweight that day</span>
+          </div>
+          <div className="wt-bw-summary-value">{bwForDate.weight} kg</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function formatDate(d) {
   const date = new Date(d + "T00:00:00");
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -488,7 +568,8 @@ const CSS = `
   .wt-plate-sub { font-size: 12px; color: ${COLORS.textDim}; text-align: center; font-weight: 500; }
   .wt-recent { margin-top: 44px; }
   .wt-recent-head { display: flex; align-items: center; gap: 6px; color: ${COLORS.textDim}; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
-  .wt-recent-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: ${COLORS.bg2}; border-radius: 10px; margin-bottom: 8px; font-size: 13px; }
+  .wt-recent-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: ${COLORS.bg2}; border-radius: 10px; margin-bottom: 8px; font-size: 13px; width: 100%; border: 1px solid transparent; font-family: inherit; color: inherit; cursor: pointer; }
+  .wt-recent-row:active { border-color: ${COLORS.accentDim}; }
   .wt-recent-date { color: ${COLORS.text}; font-weight: 600; width: 56px; }
   .wt-recent-plan { color: ${COLORS.textDim}; flex: 1; text-align: center; }
   .wt-recent-progress { color: ${COLORS.accent}; font-weight: 600; }
@@ -522,6 +603,9 @@ const CSS = `
   .wt-card { background: ${COLORS.bg2}; border-radius: 14px; overflow: hidden; border: 1px solid rgba(237,235,228,0.05); }
   .wt-card.open { border-color: ${COLORS.accentDim}; }
   .wt-card-head { width: 100%; background: none; border: none; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: inherit; text-align: left; }
+  .wt-card-head-static { cursor: default; }
+  .wt-set-readout { font-size: 14px; color: ${COLORS.text}; font-weight: 600; }
+  .wt-set-readout.empty { color: ${COLORS.textDim}; font-weight: 500; font-style: italic; }
   .wt-card-name { font-weight: 700; font-size: 14.5px; margin-bottom: 4px; }
   .wt-card-target { font-size: 11.5px; color: ${COLORS.textDim}; display: flex; align-items: center; gap: 5px; }
   .wt-card-head-right { display: flex; align-items: center; gap: 10px; }
