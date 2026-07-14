@@ -68,6 +68,19 @@ function saveData(data) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
+function computeLastValues(sessionsList) {
+  const result = {};
+  [...sessionsList]
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .forEach((s) => {
+      Object.entries(s.entries).forEach(([exId, sets]) => {
+        const filled = [...sets].reverse().find((set) => set.weight !== "" || set.reps !== "");
+        if (filled) result[exId] = { ...filled, date: s.date };
+      });
+    });
+  return result;
+}
+
 function exerciseName(exId) {
   for (const plan of Object.values(PLANS)) {
     const ex = plan.exercises.find((e) => e.id === exId);
@@ -188,11 +201,10 @@ export default function WorkoutTracker() {
     persist(nextLastValues, nextSessions, bodyweight);
   };
 
-  const updateBodyweight = (value) => {
-    const today = todayStr();
+  const updateBodyweight = (value, date = todayStr()) => {
     setBodyweight((prev) => {
-      const idx = prev.findIndex((b) => b.date === today);
-      const next = idx >= 0 ? prev.map((b, i) => (i === idx ? { date: today, weight: value } : b)) : [...prev, { date: today, weight: value }];
+      const idx = prev.findIndex((b) => b.date === date);
+      const next = idx >= 0 ? prev.map((b, i) => (i === idx ? { date, weight: value } : b)) : [...prev, { date, weight: value }];
       persist(lastValues, sessions, next);
       return next;
     });
@@ -220,6 +232,24 @@ export default function WorkoutTracker() {
     setSessions(nextSessions);
     persist(lastValues, nextSessions, bodyweight);
     setScreen("home");
+  };
+
+  const updateSessionEntry = (session, exId, idx, field, value) => {
+    const nextSessions = sessions.map((s) => {
+      if (s.date !== session.date || s.planId !== session.planId) return s;
+      return {
+        ...s,
+        entries: {
+          ...s.entries,
+          [exId]: s.entries[exId].map((set, i) => (i === idx ? { ...set, [field]: value } : set)),
+        },
+      };
+    });
+    const nextLastValues = computeLastValues(nextSessions);
+    setSessions(nextSessions);
+    setLastValues(nextLastValues);
+    persist(nextLastValues, nextSessions, bodyweight);
+    setViewingSession(nextSessions.find((s) => s.date === session.date && s.planId === session.planId));
   };
 
   const setsLoggedCount = (exId) => (entries[exId] || []).filter((s) => s.weight !== "" || s.reps !== "").length;
@@ -281,6 +311,9 @@ export default function WorkoutTracker() {
           bodyweight={bodyweight}
           onBack={() => setScreen("home")}
           onDelete={deleteSession}
+          onUpdate={updateSessionEntry}
+          onBodyweightChange={(value) => updateBodyweight(value, viewingSession.date)}
+          saveState={saveState}
         />
       )}
     </div>
@@ -479,9 +512,9 @@ function WorkoutScreen({ plan, entries, expanded, lastValues, onToggle, onUpdate
   );
 }
 
-function SessionDetailScreen({ session, bodyweight, onBack, onDelete }) {
+function SessionDetailScreen({ session, bodyweight, onBack, onDelete, onUpdate, onBodyweightChange, saveState }) {
   const data = PLANS[session.planId];
-  const bwForDate = bodyweight.find((b) => b.date === session.date && b.weight !== "");
+  const bwValue = bodyweight.find((b) => b.date === session.date)?.weight ?? "";
 
   const handleDelete = () => {
     const ok = window.confirm(
@@ -500,6 +533,9 @@ function SessionDetailScreen({ session, bodyweight, onBack, onDelete }) {
           <span className="wt-header-plan">Day {session.planId} · {formatDate(session.date)}</span>
           <span className="wt-header-sub">{data.subtitle}</span>
         </div>
+        <span className={`wt-save-pill ${saveState}`}>
+          {saveState === "saving" ? "Saving…" : saveState === "saved" ? <><Check size={12} strokeWidth={3} /> Saved</> : ""}
+        </span>
       </div>
 
       <div className="wt-list">
@@ -518,21 +554,41 @@ function SessionDetailScreen({ session, bodyweight, onBack, onDelete }) {
               </div>
               <div className="wt-card-body">
                 <div className="wt-sets">
-                  {sets.map((set, idx) => {
-                    const isLogged = set.weight !== "" || set.reps !== "";
-                    return (
-                      <div className="wt-set-row" key={idx}>
-                        <span className="wt-set-label">Set {idx + 1}</span>
-                        <span className={`wt-set-readout ${isLogged ? "" : "empty"}`}>
-                          {!isLogged
-                            ? "not logged"
-                            : ex.mode === "time"
-                            ? `${set.reps || "—"} sec`
-                            : `${set.weight || "—"} kg × ${set.reps || "—"}`}
-                        </span>
-                      </div>
-                    );
-                  })}
+                  {sets.map((set, idx) => (
+                    <div className="wt-set-row" key={idx}>
+                      <span className="wt-set-label">Set {idx + 1}</span>
+                      {ex.mode === "time" ? (
+                        <input
+                          className="wt-input"
+                          type="number"
+                          inputMode="numeric"
+                          placeholder="sec"
+                          value={set.reps}
+                          onChange={(e) => onUpdate(session, ex.id, idx, "reps", e.target.value)}
+                        />
+                      ) : (
+                        <>
+                          <input
+                            className="wt-input"
+                            type="number"
+                            inputMode="decimal"
+                            placeholder="kg"
+                            value={set.weight}
+                            onChange={(e) => onUpdate(session, ex.id, idx, "weight", e.target.value)}
+                          />
+                          <span className="wt-x">×</span>
+                          <input
+                            className="wt-input"
+                            type="number"
+                            inputMode="numeric"
+                            placeholder="reps"
+                            value={set.reps}
+                            onChange={(e) => onUpdate(session, ex.id, idx, "reps", e.target.value)}
+                          />
+                        </>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -540,15 +596,23 @@ function SessionDetailScreen({ session, bodyweight, onBack, onDelete }) {
         })}
       </div>
 
-      {bwForDate && (
-        <div className="wt-bw-card">
-          <div className="wt-bw-head">
-            <Scale size={14} />
-            <span>Bodyweight that day</span>
-          </div>
-          <div className="wt-bw-summary-value">{bwForDate.weight} kg</div>
+      <div className="wt-bw-card">
+        <div className="wt-bw-head">
+          <Scale size={14} />
+          <span>Bodyweight that day</span>
         </div>
-      )}
+        <div className="wt-bw-input-row">
+          <input
+            className="wt-input"
+            type="number"
+            inputMode="decimal"
+            placeholder="e.g. 78.5"
+            value={bwValue}
+            onChange={(e) => onBodyweightChange(e.target.value)}
+          />
+          <span className="wt-bw-unit">kg</span>
+        </div>
+      </div>
 
       <button className="wt-delete-btn" onClick={handleDelete}>
         <Trash2 size={14} />
@@ -624,8 +688,6 @@ const CSS = `
   .wt-card.open { border-color: ${COLORS.accentDim}; }
   .wt-card-head { width: 100%; background: none; border: none; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: inherit; text-align: left; }
   .wt-card-head-static { cursor: default; }
-  .wt-set-readout { font-size: 14px; color: ${COLORS.text}; font-weight: 600; }
-  .wt-set-readout.empty { color: ${COLORS.textDim}; font-weight: 500; font-style: italic; }
   .wt-card-name { font-weight: 700; font-size: 14.5px; margin-bottom: 4px; }
   .wt-card-target { font-size: 11.5px; color: ${COLORS.textDim}; display: flex; align-items: center; gap: 5px; }
   .wt-card-head-right { display: flex; align-items: center; gap: 10px; }
