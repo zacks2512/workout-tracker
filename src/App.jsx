@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Check, ArrowLeft, Dumbbell, Clock3, History, Scale, TrendingUp, TrendingDown, ClipboardCopy, Trash2, CalendarDays } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Check, ArrowLeft, Dumbbell, Clock3, History, Scale, TrendingUp, TrendingDown, ClipboardCopy, Trash2, CalendarDays, Timer } from "lucide-react";
 
 const STORAGE_KEY = "workout-data";
 
@@ -79,6 +79,18 @@ function computeLastValues(sessionsList) {
       });
     });
   return result;
+}
+
+function exerciseHistory(sessions, exId, excludeDate, limit = 3) {
+  return [...sessions]
+    .filter((s) => s.date !== excludeDate)
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .map((s) => {
+      const sets = (s.entries[exId] || []).filter((x) => x.weight !== "" || x.reps !== "");
+      return sets.length ? { date: s.date, sets } : null;
+    })
+    .filter(Boolean)
+    .slice(0, limit);
 }
 
 function exerciseName(exId) {
@@ -296,6 +308,7 @@ export default function WorkoutTracker() {
       ) : screen === "workout" ? (
         <WorkoutScreen
           plan={plan}
+          sessions={sessions}
           entries={entries}
           expanded={expanded}
           lastValues={lastValues}
@@ -449,10 +462,62 @@ function BodyweightTrend({ bodyweight }) {
   );
 }
 
-function WorkoutScreen({ plan, entries, expanded, lastValues, onToggle, onUpdate, onUseLast, setsLoggedCount, onBack, saveState, bodyweightValue, onBodyweightChange }) {
+function RestTimer() {
+  const [secondsLeft, setSecondsLeft] = useState(null); // null = idle
+  const [done, setDone] = useState(false);
+  const intervalRef = useRef(null);
+
+  const start = (secs) => {
+    clearInterval(intervalRef.current);
+    setDone(false);
+    setSecondsLeft(secs);
+    intervalRef.current = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(intervalRef.current);
+          if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+          setDone(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const reset = () => {
+    clearInterval(intervalRef.current);
+    setSecondsLeft(null);
+    setDone(false);
+  };
+
+  useEffect(() => () => clearInterval(intervalRef.current), []);
+
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+  return (
+    <div className={`wt-timer ${done ? "done" : ""}`}>
+      {secondsLeft === null ? (
+        <>
+          <span className="wt-timer-label"><Timer size={14} /> Rest</span>
+          {[60, 90, 120].map((s) => (
+            <button key={s} className="wt-timer-preset" onClick={() => start(s)}>{fmt(s)}</button>
+          ))}
+        </>
+      ) : (
+        <button className="wt-timer-running" onClick={reset}>
+          <span className="wt-timer-count">{done ? "Go!" : fmt(secondsLeft)}</span>
+          <span className="wt-timer-hint">{done ? "tap to reset" : "tap to cancel"}</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle, onUpdate, onUseLast, setsLoggedCount, onBack, saveState, bodyweightValue, onBodyweightChange }) {
   const data = PLANS[plan];
   return (
-    <div className="wt-workout">
+    <div className="wt-workout wt-with-timer">
       <div className="wt-header">
         <button className="wt-back" onClick={onBack} aria-label="Back">
           <ArrowLeft size={20} />
@@ -471,6 +536,7 @@ function WorkoutScreen({ plan, entries, expanded, lastValues, onToggle, onUpdate
           const isOpen = !!expanded[ex.id];
           const logged = setsLoggedCount(ex.id);
           const last = lastValues[ex.id];
+          const history = isOpen ? exerciseHistory(sessions, ex.id, todayStr()) : [];
           return (
             <div key={ex.id} className={`wt-card ${isOpen ? "open" : ""}`}>
               <button className="wt-card-head" onClick={() => onToggle(ex.id)}>
@@ -502,6 +568,21 @@ function WorkoutScreen({ plan, entries, expanded, lastValues, onToggle, onUpdate
                         {ex.mode !== "time" && last.reps ? ` × ${last.reps}` : ""}
                       </span>
                       <button className="wt-use-last" onClick={() => onUseLast(ex.id)}>Use last</button>
+                    </div>
+                  )}
+
+                  {history.length > 0 && (
+                    <div className="wt-prev">
+                      {history.map((h) => (
+                        <div key={h.date} className="wt-prev-row">
+                          <span className="wt-prev-date">{formatDate(h.date)}</span>
+                          <span className="wt-prev-sets">
+                            {h.sets
+                              .map((s) => (ex.mode === "time" ? `${s.reps || "—"}s` : `${s.weight || "—"}×${s.reps || "—"}`))
+                              .join(" · ")}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   )}
 
@@ -568,6 +649,8 @@ function WorkoutScreen({ plan, entries, expanded, lastValues, onToggle, onUpdate
       </div>
 
       <div className="wt-footer-note">Entries save automatically as you type.</div>
+
+      <RestTimer />
     </div>
   );
 }
@@ -913,6 +996,21 @@ const CSS = `
   .wt-input:focus { outline: none; border-color: ${COLORS.accent}; }
   .wt-x { color: ${COLORS.textDim}; font-size: 12px; flex-shrink: 0; }
   .wt-footer-note { text-align: center; font-size: 11px; color: ${COLORS.textDim}; margin-top: 18px; }
+
+  .wt-prev { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; padding: 0 2px; }
+  .wt-prev-row { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; }
+  .wt-prev-date { color: ${COLORS.textDim}; flex-shrink: 0; width: 56px; }
+  .wt-prev-sets { color: ${COLORS.textDim}; text-align: right; }
+
+  .wt-with-timer { padding-bottom: 104px; }
+  .wt-timer { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); width: calc(100% - 32px); max-width: 448px; background: ${COLORS.bg3}; border: 1px solid rgba(237,235,228,0.08); border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; z-index: 10; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+  .wt-timer.done { border-color: ${COLORS.accent}; }
+  .wt-timer-label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: ${COLORS.textDim}; text-transform: uppercase; letter-spacing: 0.06em; flex: 1; }
+  .wt-timer-preset { background: ${COLORS.bg2}; border: 1px solid rgba(237,235,228,0.08); color: ${COLORS.text}; font-weight: 700; font-size: 13px; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+  .wt-timer-preset:active { border-color: ${COLORS.accent}; color: ${COLORS.accent}; }
+  .wt-timer-running { flex: 1; display: flex; align-items: center; justify-content: space-between; background: none; border: none; color: inherit; cursor: pointer; padding: 2px 4px; font-family: inherit; }
+  .wt-timer-count { font-size: 22px; font-weight: 800; color: ${COLORS.accent}; font-variant-numeric: tabular-nums; }
+  .wt-timer-hint { font-size: 11px; color: ${COLORS.textDim}; }
 
   .wt-delete-btn { margin: 20px 16px 0; width: calc(100% - 32px); display: flex; align-items: center; justify-content: center; gap: 8px; background: none; border: 1px solid rgba(196,105,79,0.3); color: #C4694F; font-size: 12.5px; font-weight: 600; padding: 12px; border-radius: 12px; cursor: pointer; }
   .wt-delete-btn:active { background: rgba(196,105,79,0.1); }
