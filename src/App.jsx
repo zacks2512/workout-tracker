@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { ChevronDown, Check, ArrowLeft, Dumbbell, Clock3, History, Scale, TrendingUp, TrendingDown, ClipboardCopy, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Check, ArrowLeft, Dumbbell, Clock3, History, Scale, TrendingUp, TrendingDown, ClipboardCopy, Trash2, CalendarDays } from "lucide-react";
 
 const STORAGE_KEY = "workout-data";
 
@@ -129,9 +129,10 @@ async function copyToClipboard(text) {
 }
 
 export default function WorkoutTracker() {
-  const [screen, setScreen] = useState("home"); // home | workout | session
+  const [screen, setScreen] = useState("home"); // home | workout | session | calendar
   const [plan, setPlan] = useState(null);
   const [viewingSession, setViewingSession] = useState(null);
+  const [sessionReturnTo, setSessionReturnTo] = useState("home");
   const [entries, setEntries] = useState({});
   const [expanded, setExpanded] = useState({});
   const [lastValues, setLastValues] = useState({});
@@ -222,8 +223,9 @@ export default function WorkoutTracker() {
 
   const toggleExpand = (exId) => setExpanded((prev) => ({ ...prev, [exId]: !prev[exId] }));
 
-  const openSession = (session) => {
+  const openSession = (session, returnTo = "home") => {
     setViewingSession(session);
+    setSessionReturnTo(returnTo);
     setScreen("session");
   };
 
@@ -231,7 +233,7 @@ export default function WorkoutTracker() {
     const nextSessions = sessions.filter((s) => !(s.date === session.date && s.planId === session.planId));
     setSessions(nextSessions);
     persist(lastValues, nextSessions, bodyweight);
-    setScreen("home");
+    setScreen(sessionReturnTo);
   };
 
   const updateSessionEntry = (session, exId, idx, field, value) => {
@@ -289,6 +291,7 @@ export default function WorkoutTracker() {
           copyState={copyState}
           hasData={sessions.length > 0 || bodyweight.length > 0}
           onOpenSession={openSession}
+          onOpenCalendar={() => setScreen("calendar")}
         />
       ) : screen === "workout" ? (
         <WorkoutScreen
@@ -305,11 +308,17 @@ export default function WorkoutTracker() {
           bodyweightValue={todaysBodyweight}
           onBodyweightChange={updateBodyweight}
         />
+      ) : screen === "calendar" ? (
+        <CalendarScreen
+          sessions={sessions}
+          onBack={() => setScreen("home")}
+          onOpenSession={(s) => openSession(s, "calendar")}
+        />
       ) : (
         <SessionDetailScreen
           session={viewingSession}
           bodyweight={bodyweight}
-          onBack={() => setScreen("home")}
+          onBack={() => setScreen(sessionReturnTo)}
           onDelete={deleteSession}
           onUpdate={updateSessionEntry}
           onBodyweightChange={(value) => updateBodyweight(value, viewingSession.date)}
@@ -320,7 +329,7 @@ export default function WorkoutTracker() {
   );
 }
 
-function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, hasData, onOpenSession }) {
+function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, hasData, onOpenSession, onOpenCalendar }) {
   const sortedBW = [...bodyweight].filter((b) => b.weight !== "").sort((a, b) => (a.date < b.date ? 1 : -1));
   const latestBW = sortedBW[0];
   const prevBW = sortedBW[1];
@@ -365,8 +374,14 @@ function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, h
       {recentSessions.length > 0 && (
         <div className="wt-recent">
           <div className="wt-recent-head">
-            <History size={14} strokeWidth={2.5} />
-            <span>Recent sessions</span>
+            <div className="wt-recent-head-left">
+              <History size={14} strokeWidth={2.5} />
+              <span>Recent sessions</span>
+            </div>
+            <button className="wt-cal-link" onClick={onOpenCalendar}>
+              <CalendarDays size={13} />
+              Full history
+            </button>
           </div>
           {recentSessions.map((s) => {
             const total = PLANS[s.planId].exercises.length;
@@ -667,6 +682,127 @@ function SessionDetailScreen({ session, bodyweight, onBack, onDelete, onUpdate, 
   );
 }
 
+const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+
+function getMonthGrid(year, month) {
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    cells.push({ day, dateStr });
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+function CalendarScreen({ sessions, onBack, onOpenSession }) {
+  const now = new Date();
+  const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() });
+  const [selectedDate, setSelectedDate] = useState(null);
+
+  const cells = getMonthGrid(view.year, view.month);
+  const monthLabel = new Date(view.year, view.month, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const todayStr2 = todayStr();
+
+  const goMonth = (delta) => {
+    setSelectedDate(null);
+    setView((prev) => {
+      let month = prev.month + delta;
+      let year = prev.year;
+      if (month < 0) { month = 11; year -= 1; }
+      if (month > 11) { month = 0; year += 1; }
+      return { year, month };
+    });
+  };
+
+  const sessionsForDate = (dateStr) => sessions.filter((s) => s.date === dateStr);
+  const selectedSessions = selectedDate ? sessionsForDate(selectedDate) : [];
+
+  return (
+    <div className="wt-workout">
+      <div className="wt-header">
+        <button className="wt-back" onClick={onBack} aria-label="Back">
+          <ArrowLeft size={20} />
+        </button>
+        <div className="wt-header-mid">
+          <span className="wt-header-plan">Workout history</span>
+        </div>
+      </div>
+
+      <div className="wt-cal">
+        <div className="wt-cal-nav">
+          <button className="wt-cal-nav-btn" onClick={() => goMonth(-1)} aria-label="Previous month">
+            <ChevronLeft size={18} />
+          </button>
+          <span className="wt-cal-month">{monthLabel}</span>
+          <button className="wt-cal-nav-btn" onClick={() => goMonth(1)} aria-label="Next month">
+            <ChevronRight size={18} />
+          </button>
+        </div>
+
+        <div className="wt-cal-weekdays">
+          {WEEKDAY_LABELS.map((w, i) => (
+            <span key={i}>{w}</span>
+          ))}
+        </div>
+
+        <div className="wt-cal-grid">
+          {cells.map((cell, i) => {
+            if (!cell) return <div key={i} className="wt-cal-cell empty" />;
+            const daySessions = sessionsForDate(cell.dateStr);
+            const isToday = cell.dateStr === todayStr2;
+            const isSelected = cell.dateStr === selectedDate;
+            return (
+              <button
+                key={i}
+                className={`wt-cal-cell ${isToday ? "today" : ""} ${isSelected ? "selected" : ""}`}
+                onClick={() => setSelectedDate(cell.dateStr)}
+              >
+                <span className="wt-cal-daynum">{cell.day}</span>
+                {daySessions.length > 0 && (
+                  <span className="wt-cal-badges">
+                    {daySessions.map((s) => (
+                      <span key={s.planId} className="wt-cal-badge">{s.planId}</span>
+                    ))}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {selectedDate && (
+        <div className="wt-recent" style={{ padding: "0 16px" }}>
+          <div className="wt-recent-head">
+            <div className="wt-recent-head-left">
+              <History size={14} strokeWidth={2.5} />
+              <span>{formatDate(selectedDate)}</span>
+            </div>
+          </div>
+          {selectedSessions.length === 0 ? (
+            <div className="wt-cal-empty-note">No workout logged this day.</div>
+          ) : (
+            selectedSessions.map((s) => {
+              const total = PLANS[s.planId].exercises.length;
+              const done = Object.values(s.entries).filter((sets) => sets.some((x) => x.weight !== "" || x.reps !== "")).length;
+              return (
+                <button key={s.planId} className="wt-recent-row" onClick={() => onOpenSession(s)}>
+                  <span className="wt-recent-date">{formatDate(s.date)}</span>
+                  <span className="wt-recent-plan">Day {s.planId}</span>
+                  <span className="wt-recent-progress">{done}/{total} logged</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function formatDate(d) {
   const date = new Date(d + "T00:00:00");
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -696,12 +832,29 @@ const CSS = `
   .wt-plate-letter { font-size: 32px; font-weight: 800; color: ${COLORS.text}; }
   .wt-plate-sub { font-size: 12px; color: ${COLORS.textDim}; text-align: center; font-weight: 500; }
   .wt-recent { margin-top: 44px; }
-  .wt-recent-head { display: flex; align-items: center; gap: 6px; color: ${COLORS.textDim}; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  .wt-recent-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; color: ${COLORS.textDim}; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  .wt-recent-head-left { display: flex; align-items: center; gap: 6px; }
+  .wt-cal-link { display: flex; align-items: center; gap: 4px; background: none; border: none; color: ${COLORS.accent}; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: none; cursor: pointer; padding: 0; }
   .wt-recent-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: ${COLORS.bg2}; border-radius: 10px; margin-bottom: 8px; font-size: 13px; width: 100%; border: 1px solid transparent; font-family: inherit; color: inherit; cursor: pointer; }
   .wt-recent-row:active { border-color: ${COLORS.accentDim}; }
   .wt-recent-date { color: ${COLORS.text}; font-weight: 600; width: 56px; }
   .wt-recent-plan { color: ${COLORS.textDim}; flex: 1; text-align: center; }
   .wt-recent-progress { color: ${COLORS.accent}; font-weight: 600; }
+
+  .wt-cal { padding: 14px 16px 0; }
+  .wt-cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .wt-cal-nav-btn { background: ${COLORS.bg2}; border: none; color: ${COLORS.text}; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .wt-cal-month { font-weight: 700; font-size: 14px; }
+  .wt-cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 11px; color: ${COLORS.textDim}; font-weight: 700; margin-bottom: 4px; }
+  .wt-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .wt-cal-cell { aspect-ratio: 1; background: ${COLORS.bg2}; border: 1px solid transparent; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; color: inherit; font-family: inherit; padding: 2px; min-width: 0; }
+  .wt-cal-cell.empty { background: none; cursor: default; }
+  .wt-cal-cell.today { border-color: ${COLORS.accent}; }
+  .wt-cal-cell.selected { background: ${COLORS.accentDim}; }
+  .wt-cal-daynum { font-size: 11.5px; color: ${COLORS.text}; }
+  .wt-cal-badges { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
+  .wt-cal-badge { font-size: 8.5px; font-weight: 700; color: ${COLORS.bg}; background: ${COLORS.accent}; width: 12px; height: 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center; line-height: 1; }
+  .wt-cal-empty-note { font-size: 12.5px; color: ${COLORS.textDim}; font-style: italic; padding: 8px 2px; }
 
   .wt-bw-summary { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; background: ${COLORS.bg2}; border-radius: 12px; padding: 12px 16px; border: 1px solid rgba(237,235,228,0.05); }
   .wt-bw-summary-top { display: flex; align-items: center; justify-content: space-between; }
