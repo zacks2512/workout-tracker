@@ -343,19 +343,22 @@ function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, h
 
       {latestBW && (
         <div className="wt-bw-summary">
-          <div className="wt-bw-summary-left">
-            <Scale size={16} className="wt-bw-summary-icon" />
-            <div>
-              <div className="wt-bw-summary-value">{latestBW.weight} kg</div>
-              <div className="wt-bw-summary-date">{formatDate(latestBW.date)}</div>
+          <div className="wt-bw-summary-top">
+            <div className="wt-bw-summary-left">
+              <Scale size={16} className="wt-bw-summary-icon" />
+              <div>
+                <div className="wt-bw-summary-value">{latestBW.weight} kg</div>
+                <div className="wt-bw-summary-date">{formatDate(latestBW.date)}</div>
+              </div>
             </div>
+            {delta !== null && !Number.isNaN(delta) && (
+              <div className={`wt-bw-delta ${delta > 0 ? "up" : delta < 0 ? "down" : ""}`}>
+                {delta > 0 ? <TrendingUp size={13} /> : delta < 0 ? <TrendingDown size={13} /> : null}
+                {delta === 0 ? "no change" : `${delta > 0 ? "+" : ""}${delta.toFixed(1)} kg`}
+              </div>
+            )}
           </div>
-          {delta !== null && !Number.isNaN(delta) && (
-            <div className={`wt-bw-delta ${delta > 0 ? "up" : delta < 0 ? "down" : ""}`}>
-              {delta > 0 ? <TrendingUp size={13} /> : delta < 0 ? <TrendingDown size={13} /> : null}
-              {delta === 0 ? "no change" : `${delta > 0 ? "+" : ""}${delta.toFixed(1)} kg`}
-            </div>
-          )}
+          <BodyweightTrend bodyweight={bodyweight} />
         </div>
       )}
 
@@ -385,6 +388,48 @@ function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, h
           {copyState === "copied" ? "Copied! Paste into Google Sheets" : copyState === "error" ? "Couldn't copy — try again" : "Copy data for Google Sheets"}
         </button>
       )}
+    </div>
+  );
+}
+
+function BodyweightTrend({ bodyweight }) {
+  const [activeIdx, setActiveIdx] = useState(null);
+
+  const points = [...bodyweight]
+    .filter((b) => b.weight !== "" && !Number.isNaN(parseFloat(b.weight)))
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .slice(-30)
+    .map((b) => ({ date: b.date, weight: parseFloat(b.weight) }));
+
+  if (points.length < 2) return null;
+
+  const W = 300, H = 48, PAD_X = 6, PAD_Y = 8;
+  const weights = points.map((p) => p.weight);
+  const min = Math.min(...weights);
+  const max = Math.max(...weights);
+  const range = max - min || 1;
+
+  const coords = points.map((p, i) => ({
+    ...p,
+    x: PAD_X + (i / (points.length - 1)) * (W - PAD_X * 2),
+    y: PAD_Y + (1 - (p.weight - min) / range) * (H - PAD_Y * 2),
+  }));
+
+  const linePoints = coords.map((c) => `${c.x},${c.y}`).join(" ");
+  const shown = activeIdx !== null ? coords[activeIdx] : coords[coords.length - 1];
+
+  return (
+    <div className="wt-bw-trend">
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="wt-bw-trend-svg">
+        <polyline points={linePoints} className="wt-bw-trend-line" />
+        <circle cx={shown.x} cy={shown.y} r={4} className="wt-bw-trend-dot" />
+        {coords.map((c, i) => (
+          <circle key={i} cx={c.x} cy={c.y} r={12} fill="transparent" onClick={() => setActiveIdx(i)} />
+        ))}
+      </svg>
+      <div className="wt-bw-trend-caption">
+        <strong>{shown.weight} kg</strong> · {formatDate(shown.date)}
+      </div>
     </div>
   );
 }
@@ -658,7 +703,8 @@ const CSS = `
   .wt-recent-plan { color: ${COLORS.textDim}; flex: 1; text-align: center; }
   .wt-recent-progress { color: ${COLORS.accent}; font-weight: 600; }
 
-  .wt-bw-summary { margin-top: 24px; display: flex; align-items: center; justify-content: space-between; background: ${COLORS.bg2}; border-radius: 12px; padding: 12px 16px; border: 1px solid rgba(237,235,228,0.05); }
+  .wt-bw-summary { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; background: ${COLORS.bg2}; border-radius: 12px; padding: 12px 16px; border: 1px solid rgba(237,235,228,0.05); }
+  .wt-bw-summary-top { display: flex; align-items: center; justify-content: space-between; }
   .wt-bw-summary-left { display: flex; align-items: center; gap: 10px; }
   .wt-bw-summary-icon { color: ${COLORS.accent}; }
   .wt-bw-summary-value { font-weight: 800; font-size: 15px; }
@@ -666,6 +712,13 @@ const CSS = `
   .wt-bw-delta { font-size: 12px; font-weight: 700; color: ${COLORS.textDim}; display: flex; align-items: center; gap: 3px; }
   .wt-bw-delta.up { color: #C4694F; }
   .wt-bw-delta.down { color: #6FA88A; }
+
+  .wt-bw-trend { border-top: 1px solid rgba(237,235,228,0.06); padding-top: 10px; }
+  .wt-bw-trend-svg { width: 100%; height: 48px; display: block; cursor: pointer; }
+  .wt-bw-trend-line { fill: none; stroke: ${COLORS.textDim}; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .wt-bw-trend-dot { fill: ${COLORS.accent}; stroke: ${COLORS.bg2}; stroke-width: 2; }
+  .wt-bw-trend-caption { font-size: 11px; color: ${COLORS.textDim}; text-align: right; margin-top: 4px; }
+  .wt-bw-trend-caption strong { color: ${COLORS.text}; font-weight: 700; }
 
   .wt-bw-card { margin: 4px 16px 0; background: ${COLORS.bg2}; border-radius: 14px; padding: 14px 16px; border: 1px solid rgba(237,235,228,0.05); }
   .wt-bw-head { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: ${COLORS.textDim}; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
