@@ -141,7 +141,7 @@ async function copyToClipboard(text) {
 }
 
 export default function WorkoutTracker() {
-  const [screen, setScreen] = useState("home"); // home | workout | session | calendar
+  const [screen, setScreen] = useState("home"); // home | workout | session | calendar | bwlog
   const [plan, setPlan] = useState(null);
   const [viewingSession, setViewingSession] = useState(null);
   const [sessionReturnTo, setSessionReturnTo] = useState("home");
@@ -235,6 +235,12 @@ export default function WorkoutTracker() {
 
   const toggleExpand = (exId) => setExpanded((prev) => ({ ...prev, [exId]: !prev[exId] }));
 
+  const deleteBodyweightEntry = (date) => {
+    const next = bodyweight.filter((b) => b.date !== date);
+    setBodyweight(next);
+    persist(lastValues, sessions, next);
+  };
+
   const openSession = (session, returnTo = "home") => {
     setViewingSession(session);
     setSessionReturnTo(returnTo);
@@ -304,6 +310,7 @@ export default function WorkoutTracker() {
           hasData={sessions.length > 0 || bodyweight.length > 0}
           onOpenSession={openSession}
           onOpenCalendar={() => setScreen("calendar")}
+          onOpenBodyweightLog={() => setScreen("bwlog")}
         />
       ) : screen === "workout" ? (
         <WorkoutScreen
@@ -327,6 +334,14 @@ export default function WorkoutTracker() {
           onBack={() => setScreen("home")}
           onOpenSession={(s) => openSession(s, "calendar")}
         />
+      ) : screen === "bwlog" ? (
+        <BodyweightLogScreen
+          bodyweight={bodyweight}
+          onBack={() => setScreen("home")}
+          onChange={updateBodyweight}
+          onDelete={deleteBodyweightEntry}
+          saveState={saveState}
+        />
       ) : (
         <SessionDetailScreen
           session={viewingSession}
@@ -342,7 +357,7 @@ export default function WorkoutTracker() {
   );
 }
 
-function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, hasData, onOpenSession, onOpenCalendar }) {
+function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, hasData, onOpenSession, onOpenCalendar, onOpenBodyweightLog }) {
   const sortedBW = [...bodyweight].filter((b) => b.weight !== "").sort((a, b) => (a.date < b.date ? 1 : -1));
   const latestBW = sortedBW[0];
   const prevBW = sortedBW[1];
@@ -363,7 +378,7 @@ function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, h
         ))}
       </div>
 
-      {latestBW && (
+      {latestBW ? (
         <div className="wt-bw-summary">
           <div className="wt-bw-summary-top">
             <div className="wt-bw-summary-left">
@@ -381,7 +396,16 @@ function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, h
             )}
           </div>
           <BodyweightTrend bodyweight={bodyweight} />
+          <button className="wt-cal-link wt-bw-editlink" onClick={onOpenBodyweightLog}>
+            <Scale size={13} />
+            Edit bodyweight log
+          </button>
         </div>
+      ) : (
+        <button className="wt-bw-empty-cta" onClick={onOpenBodyweightLog}>
+          <Scale size={16} />
+          Log your bodyweight
+        </button>
       )}
 
       {recentSessions.length > 0 && (
@@ -886,6 +910,81 @@ function CalendarScreen({ sessions, onBack, onOpenSession }) {
   );
 }
 
+function BodyweightLogScreen({ bodyweight, onBack, onChange, onDelete, saveState }) {
+  const [newDate, setNewDate] = useState(todayStr());
+  const [newWeight, setNewWeight] = useState("");
+
+  const sorted = [...bodyweight].filter((b) => b.weight !== "").sort((a, b) => (a.date < b.date ? 1 : -1));
+
+  const handleAdd = () => {
+    if (!newWeight) return;
+    onChange(newWeight, newDate);
+    setNewWeight("");
+  };
+
+  const handleDelete = (date) => {
+    if (window.confirm(`Delete the bodyweight entry for ${formatDate(date)}?`)) onDelete(date);
+  };
+
+  return (
+    <div className="wt-workout">
+      <div className="wt-header">
+        <button className="wt-back" onClick={onBack} aria-label="Back">
+          <ArrowLeft size={20} />
+        </button>
+        <div className="wt-header-mid">
+          <span className="wt-header-plan">Bodyweight log</span>
+        </div>
+        <span className={`wt-save-pill ${saveState}`}>
+          {saveState === "saving" ? "Saving…" : saveState === "saved" ? <><Check size={12} strokeWidth={3} /> Saved</> : ""}
+        </span>
+      </div>
+
+      <div className="wt-bwlog-add">
+        <input
+          className="wt-input"
+          type="date"
+          value={newDate}
+          max={todayStr()}
+          onChange={(e) => setNewDate(e.target.value)}
+        />
+        <input
+          className="wt-input"
+          type="number"
+          inputMode="decimal"
+          placeholder="kg"
+          value={newWeight}
+          onChange={(e) => setNewWeight(e.target.value)}
+        />
+        <button className="wt-bwlog-add-btn" onClick={handleAdd}>Add</button>
+      </div>
+
+      <div className="wt-bwlog-list">
+        {sorted.length === 0 ? (
+          <div className="wt-cal-empty-note">No bodyweight entries yet.</div>
+        ) : (
+          sorted.map((b) => (
+            <div key={b.date} className="wt-bwlog-row">
+              <span className="wt-bwlog-date">{formatDate(b.date)}</span>
+              <input
+                className="wt-input wt-bwlog-input"
+                type="number"
+                inputMode="decimal"
+                value={b.weight}
+                onChange={(e) => onChange(e.target.value, b.date)}
+              />
+              <span className="wt-bwlog-unit">kg</span>
+              <button className="wt-bwlog-delete" onClick={() => handleDelete(b.date)} aria-label="Delete entry">
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function formatDate(d) {
   const date = new Date(d + "T00:00:00");
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -960,6 +1059,19 @@ const CSS = `
   .wt-bw-head { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: ${COLORS.textDim}; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
   .wt-bw-input-row { display: flex; align-items: center; gap: 8px; }
   .wt-bw-unit { font-size: 12px; color: ${COLORS.textDim}; flex-shrink: 0; }
+
+  .wt-bw-editlink { justify-content: center; border-top: 1px solid rgba(237,235,228,0.06); padding-top: 10px; width: 100%; }
+  .wt-bw-empty-cta { margin-top: 24px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: ${COLORS.bg2}; border: 1px dashed rgba(237,235,228,0.15); color: ${COLORS.textDim}; font-size: 13px; font-weight: 600; padding: 16px; border-radius: 12px; cursor: pointer; }
+  .wt-bw-empty-cta:active { border-color: ${COLORS.accent}; color: ${COLORS.accent}; }
+
+  .wt-bwlog-add { display: flex; gap: 8px; padding: 14px 16px 0; }
+  .wt-bwlog-add-btn { background: ${COLORS.accent}; color: ${COLORS.bg}; border: none; font-weight: 700; font-size: 13px; padding: 0 16px; border-radius: 8px; cursor: pointer; flex-shrink: 0; }
+  .wt-bwlog-list { padding: 14px 16px 0; display: flex; flex-direction: column; gap: 8px; }
+  .wt-bwlog-row { display: flex; align-items: center; gap: 10px; background: ${COLORS.bg2}; border-radius: 10px; padding: 10px 12px; }
+  .wt-bwlog-date { font-size: 12.5px; color: ${COLORS.textDim}; width: 52px; flex-shrink: 0; }
+  .wt-bwlog-input { flex: 1; }
+  .wt-bwlog-unit { font-size: 12px; color: ${COLORS.textDim}; flex-shrink: 0; }
+  .wt-bwlog-delete { background: none; border: none; color: #C4694F; padding: 6px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; }
 
   .wt-export { margin-top: 24px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: ${COLORS.bg2}; border: 1px dashed rgba(237,235,228,0.15); color: ${COLORS.textDim}; font-size: 12.5px; font-weight: 600; padding: 12px; border-radius: 12px; cursor: pointer; }
   .wt-export:active { border-color: ${COLORS.accent}; color: ${COLORS.accent}; }
