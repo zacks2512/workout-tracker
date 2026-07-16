@@ -228,7 +228,13 @@ export default function WorkoutTracker() {
     const last = lastValues[exId];
     if (!last) return;
     setEntries((prev) => {
-      const next = { ...prev, [exId]: prev[exId].map(() => ({ weight: last.weight, reps: last.reps })) };
+      const sets = prev[exId];
+      const nextIdx = sets.findIndex((s) => s.weight === "" && s.reps === "");
+      if (nextIdx === -1) return prev;
+      const next = {
+        ...prev,
+        [exId]: sets.map((s, i) => (i === nextIdx ? { weight: last.weight, reps: last.reps } : s)),
+      };
       commitSession(next);
       return next;
     });
