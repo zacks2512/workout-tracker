@@ -26,8 +26,8 @@ const PLANS = {
       { id: "b3", name: "Lat Pulldown", sets: 3, target: "10–12 reps", mode: "weight", howTo: "Pull the bar to your upper chest, lead with your elbows, control the return." },
       { id: "b4", name: "Walking Lunges", sets: 3, target: "12 reps / leg", mode: "weight", howTo: "Step forward into a lunge, drop your back knee toward the floor, push off to the next step." },
       { id: "b5", name: "Seated Cable Row", sets: 3, target: "10–12 reps", mode: "weight", howTo: "Pull the handle to your stomach, squeeze your back, keep your torso upright." },
-      { id: "b6", name: "Curl + Pushdown (superset)", sets: 3, target: "12–15 reps", mode: "weight", howTo: "Curl without swinging, then immediately push the cable down to full arm extension." },
-      { id: "b7", name: "Hanging Leg Raise", sets: 3, target: "12–15 reps", mode: "weight", howTo: "Hang from the bar and raise your knees toward your chest without swinging." },
+      { id: "b6", name: "Dumbbell Biceps Curl", sets: 3, target: "12–15 reps", mode: "weight", howTo: "Curl the dumbbells up without swinging your elbows forward, squeeze at the top, lower under control." },
+      { id: "b7", name: "Plank", sets: 3, target: "45 sec hold", mode: "time", howTo: "Hold a straight line from shoulders to heels, brace your core, keep your hips from sagging." },
     ],
   },
   C: {
