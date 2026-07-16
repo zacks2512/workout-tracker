@@ -81,16 +81,17 @@ function computeLastValues(sessionsList) {
   return result;
 }
 
-function exerciseHistory(sessions, exId, excludeDate, limit = 3) {
+function exerciseTrendPoints(sessions, exId, mode, excludeDate) {
   return [...sessions]
     .filter((s) => s.date !== excludeDate)
-    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
     .map((s) => {
       const sets = (s.entries[exId] || []).filter((x) => x.weight !== "" || x.reps !== "");
-      return sets.length ? { date: s.date, sets } : null;
+      if (!sets.length) return null;
+      const value = Math.max(...sets.map((x) => parseFloat(mode === "time" ? x.reps : x.weight) || 0));
+      return value > 0 ? { date: s.date, value } : null;
     })
-    .filter(Boolean)
-    .slice(0, limit);
+    .filter(Boolean);
 }
 
 function exerciseName(exId) {
@@ -444,46 +445,55 @@ function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, h
   );
 }
 
-function BodyweightTrend({ bodyweight }) {
+function Sparkline({ points, unit, wrapperClassName }) {
   const [activeIdx, setActiveIdx] = useState(null);
-
-  const points = [...bodyweight]
-    .filter((b) => b.weight !== "" && !Number.isNaN(parseFloat(b.weight)))
-    .sort((a, b) => (a.date < b.date ? -1 : 1))
-    .slice(-30)
-    .map((b) => ({ date: b.date, weight: parseFloat(b.weight) }));
 
   if (points.length < 2) return null;
 
   const W = 300, H = 48, PAD_X = 6, PAD_Y = 8;
-  const weights = points.map((p) => p.weight);
-  const min = Math.min(...weights);
-  const max = Math.max(...weights);
+  const values = points.map((p) => p.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
   const range = max - min || 1;
 
   const coords = points.map((p, i) => ({
     ...p,
     x: PAD_X + (i / (points.length - 1)) * (W - PAD_X * 2),
-    y: PAD_Y + (1 - (p.weight - min) / range) * (H - PAD_Y * 2),
+    y: PAD_Y + (1 - (p.value - min) / range) * (H - PAD_Y * 2),
   }));
 
   const linePoints = coords.map((c) => `${c.x},${c.y}`).join(" ");
   const shown = activeIdx !== null ? coords[activeIdx] : coords[coords.length - 1];
 
   return (
-    <div className="wt-bw-trend">
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="wt-bw-trend-svg">
-        <polyline points={linePoints} className="wt-bw-trend-line" />
-        <circle cx={shown.x} cy={shown.y} r={4} className="wt-bw-trend-dot" />
+    <div className={wrapperClassName}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="wt-trend-svg">
+        <polyline points={linePoints} className="wt-trend-line" />
+        <circle cx={shown.x} cy={shown.y} r={4} className="wt-trend-dot" />
         {coords.map((c, i) => (
           <circle key={i} cx={c.x} cy={c.y} r={12} fill="transparent" onClick={() => setActiveIdx(i)} />
         ))}
       </svg>
-      <div className="wt-bw-trend-caption">
-        <strong>{shown.weight} kg</strong> · {formatDate(shown.date)}
+      <div className="wt-trend-caption">
+        <strong>{shown.value}{unit}</strong> · {formatDate(shown.date)}
       </div>
     </div>
   );
+}
+
+function BodyweightTrend({ bodyweight }) {
+  const points = [...bodyweight]
+    .filter((b) => b.weight !== "" && !Number.isNaN(parseFloat(b.weight)))
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .slice(-30)
+    .map((b) => ({ date: b.date, value: parseFloat(b.weight) }));
+
+  return <Sparkline points={points} unit=" kg" wrapperClassName="wt-bw-trend" />;
+}
+
+function ExerciseTrend({ sessions, exId, mode }) {
+  const points = exerciseTrendPoints(sessions, exId, mode, todayStr());
+  return <Sparkline points={points} unit={mode === "time" ? "s" : " kg"} wrapperClassName="wt-ex-trend" />;
 }
 
 function RestTimer() {
@@ -560,7 +570,6 @@ function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle
           const isOpen = !!expanded[ex.id];
           const logged = setsLoggedCount(ex.id);
           const last = lastValues[ex.id];
-          const history = isOpen ? exerciseHistory(sessions, ex.id, todayStr()) : [];
           return (
             <div key={ex.id} className={`wt-card ${isOpen ? "open" : ""}`}>
               <button className="wt-card-head" onClick={() => onToggle(ex.id)}>
@@ -595,20 +604,7 @@ function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle
                     </div>
                   )}
 
-                  {history.length > 0 && (
-                    <div className="wt-prev">
-                      {history.map((h) => (
-                        <div key={h.date} className="wt-prev-row">
-                          <span className="wt-prev-date">{formatDate(h.date)}</span>
-                          <span className="wt-prev-sets">
-                            {h.sets
-                              .map((s) => (ex.mode === "time" ? `${s.reps || "—"}s` : `${s.weight || "—"}×${s.reps || "—"}`))
-                              .join(" · ")}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <ExerciseTrend sessions={sessions} exId={ex.id} mode={ex.mode} />
 
                   <div className="wt-sets">
                     {entries[ex.id]?.map((set, idx) => (
@@ -1049,11 +1045,12 @@ const CSS = `
   .wt-bw-delta.down { color: #6FA88A; }
 
   .wt-bw-trend { border-top: 1px solid rgba(237,235,228,0.06); padding-top: 10px; }
-  .wt-bw-trend-svg { width: 100%; height: 48px; display: block; cursor: pointer; }
-  .wt-bw-trend-line { fill: none; stroke: ${COLORS.textDim}; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .wt-bw-trend-dot { fill: ${COLORS.accent}; stroke: ${COLORS.bg2}; stroke-width: 2; }
-  .wt-bw-trend-caption { font-size: 11px; color: ${COLORS.textDim}; text-align: right; margin-top: 4px; }
-  .wt-bw-trend-caption strong { color: ${COLORS.text}; font-weight: 700; }
+  .wt-ex-trend { margin-bottom: 12px; }
+  .wt-trend-svg { width: 100%; height: 48px; display: block; cursor: pointer; }
+  .wt-trend-line { fill: none; stroke: ${COLORS.textDim}; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .wt-trend-dot { fill: ${COLORS.accent}; stroke: ${COLORS.bg2}; stroke-width: 2; }
+  .wt-trend-caption { font-size: 11px; color: ${COLORS.textDim}; text-align: right; margin-top: 4px; }
+  .wt-trend-caption strong { color: ${COLORS.text}; font-weight: 700; }
 
   .wt-bw-card { margin: 4px 16px 0; background: ${COLORS.bg2}; border-radius: 14px; padding: 14px 16px; border: 1px solid rgba(237,235,228,0.05); }
   .wt-bw-head { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: ${COLORS.textDim}; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
@@ -1108,11 +1105,6 @@ const CSS = `
   .wt-input:focus { outline: none; border-color: ${COLORS.accent}; }
   .wt-x { color: ${COLORS.textDim}; font-size: 12px; flex-shrink: 0; }
   .wt-footer-note { text-align: center; font-size: 11px; color: ${COLORS.textDim}; margin-top: 18px; }
-
-  .wt-prev { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; padding: 0 2px; }
-  .wt-prev-row { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; }
-  .wt-prev-date { color: ${COLORS.textDim}; flex-shrink: 0; width: 56px; }
-  .wt-prev-sets { color: ${COLORS.textDim}; text-align: right; }
 
   .wt-with-timer { padding-bottom: 104px; }
   .wt-timer { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); width: calc(100% - 32px); max-width: 448px; background: ${COLORS.bg3}; border: 1px solid rgba(237,235,228,0.08); border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; z-index: 10; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
