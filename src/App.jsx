@@ -534,7 +534,7 @@ function RestTimer() {
       {secondsLeft === null ? (
         <>
           <span className="wt-timer-label"><Timer size={14} /> Rest</span>
-          {[60, 90, 120].map((s) => (
+          {[45, 60, 90, 120].map((s) => (
             <button key={s} className="wt-timer-preset" onClick={() => start(s)}>{fmt(s)}</button>
           ))}
         </>
