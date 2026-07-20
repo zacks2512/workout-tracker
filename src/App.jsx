@@ -94,6 +94,15 @@ function exerciseTrendPoints(sessions, exId, mode, excludeDate) {
     .filter(Boolean);
 }
 
+function lastSessionSets(sessions, exId, excludeDate) {
+  const sorted = [...sessions].filter((s) => s.date !== excludeDate).sort((a, b) => (a.date < b.date ? 1 : -1));
+  for (const s of sorted) {
+    const sets = (s.entries[exId] || []).filter((x) => x.weight !== "" || x.reps !== "");
+    if (sets.length) return { date: s.date, sets };
+  }
+  return null;
+}
+
 function exerciseName(exId) {
   for (const plan of Object.values(PLANS)) {
     const ex = plan.exercises.find((e) => e.id === exId);
@@ -502,6 +511,34 @@ function ExerciseTrend({ sessions, exId, mode }) {
   return <Sparkline points={points} unit={mode === "time" ? "s" : " kg"} wrapperClassName="wt-ex-trend" />;
 }
 
+function LastSessionDropdown({ sessions, exId, mode }) {
+  const [open, setOpen] = useState(false);
+  const last = lastSessionSets(sessions, exId, todayStr());
+
+  if (!last) return null;
+
+  return (
+    <div className="wt-lastsession">
+      <button className="wt-lastsession-toggle" onClick={() => setOpen((o) => !o)}>
+        <span>Last session · {formatDate(last.date)}</span>
+        <ChevronDown size={14} className={`wt-lastsession-chevron ${open ? "open" : ""}`} />
+      </button>
+      {open && (
+        <div className="wt-lastsession-body">
+          {last.sets.map((s, i) => (
+            <div key={i} className="wt-lastsession-row">
+              <span className="wt-lastsession-label">Set {i + 1}</span>
+              <span className="wt-lastsession-value">
+                {mode === "time" ? `${s.reps || "—"} sec` : `${s.weight || "—"} kg × ${s.reps || "—"}`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RestTimer() {
   const [secondsLeft, setSecondsLeft] = useState(null); // null = idle
   const [done, setDone] = useState(false);
@@ -609,6 +646,8 @@ function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle
                       <button className="wt-use-last" onClick={() => onUseLast(ex.id)}>Use last</button>
                     </div>
                   )}
+
+                  <LastSessionDropdown sessions={sessions} exId={ex.id} mode={ex.mode} />
 
                   <ExerciseTrend sessions={sessions} exId={ex.id} mode={ex.mode} />
 
@@ -1104,6 +1143,15 @@ const CSS = `
   .wt-howto { font-size: 12.5px; color: ${COLORS.textDim}; line-height: 1.5; margin: 0 0 12px; font-style: italic; }
   .wt-last-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: ${COLORS.text}; background: ${COLORS.bg3}; padding: 8px 10px; border-radius: 8px; margin-bottom: 12px; }
   .wt-use-last { background: ${COLORS.accentDim}; color: ${COLORS.accent}; border: none; font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+
+  .wt-lastsession { margin-bottom: 12px; background: ${COLORS.bg3}; border-radius: 8px; overflow: hidden; }
+  .wt-lastsession-toggle { width: 100%; background: none; border: none; color: ${COLORS.textDim}; font-size: 11.5px; font-weight: 600; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-family: inherit; }
+  .wt-lastsession-chevron { transition: transform 0.15s; }
+  .wt-lastsession-chevron.open { transform: rotate(180deg); }
+  .wt-lastsession-body { padding: 0 10px 8px; display: flex; flex-direction: column; gap: 4px; }
+  .wt-lastsession-row { display: flex; justify-content: space-between; font-size: 12px; }
+  .wt-lastsession-label { color: ${COLORS.textDim}; }
+  .wt-lastsession-value { color: ${COLORS.text}; font-weight: 600; }
   .wt-sets { display: flex; flex-direction: column; gap: 8px; }
   .wt-set-row { display: flex; align-items: center; gap: 8px; }
   .wt-set-label { font-size: 12px; color: ${COLORS.textDim}; width: 44px; flex-shrink: 0; }
