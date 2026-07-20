@@ -232,6 +232,7 @@ export default function WorkoutTracker() {
 
   const commitSession = (currentEntries) => {
     const today = todayStr();
+    const now = Date.now();
     const nextLastValues = { ...lastValues };
     Object.entries(currentEntries).forEach(([exId, sets]) => {
       const filled = [...sets].reverse().find((s) => s.weight !== "" || s.reps !== "");
@@ -239,10 +240,12 @@ export default function WorkoutTracker() {
     });
     const idx = sessions.findIndex((s) => s.date === today && s.planId === plan);
     let nextSessions;
-    const record = { date: today, planId: plan, entries: currentEntries };
     if (idx >= 0) {
+      const existing = sessions[idx];
+      const record = { ...existing, entries: currentEntries, startedAt: existing.startedAt || now, updatedAt: now };
       nextSessions = sessions.map((s, i) => (i === idx ? record : s));
     } else {
+      const record = { date: today, planId: plan, entries: currentEntries, startedAt: now, updatedAt: now };
       nextSessions = [...sessions, record];
     }
     setLastValues(nextLastValues);
@@ -622,6 +625,16 @@ function RestTimer() {
 
 function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle, onUpdate, onUseLast, setsLoggedCount, onBack, saveState, bodyweightValue, onBodyweightChange }) {
   const data = PLANS[plan];
+  const [, forceTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => forceTick((n) => n + 1), 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  const todaySession = sessions.find((s) => s.date === todayStr() && s.planId === plan);
+  const liveDuration = todaySession?.startedAt ? formatDuration(Date.now() - todaySession.startedAt) : null;
+
   return (
     <div className="wt-workout wt-with-timer">
       <div className="wt-header">
@@ -630,7 +643,7 @@ function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle
         </button>
         <div className="wt-header-mid">
           <span className="wt-header-plan">Day {plan}</span>
-          <span className="wt-header-sub">{data.subtitle}</span>
+          <span className="wt-header-sub">{data.subtitle}{liveDuration ? ` · ${liveDuration}` : ""}</span>
         </div>
         <span className={`wt-save-pill ${saveState}`}>
           {saveState === "saving" ? "Saving…" : saveState === "saved" ? <><Check size={12} strokeWidth={3} /> Saved</> : ""}
@@ -753,6 +766,9 @@ function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle
 function SessionDetailScreen({ session, bodyweight, onBack, onDelete, onUpdate, onBodyweightChange, saveState }) {
   const data = PLANS[session.planId];
   const bwValue = bodyweight.find((b) => b.date === session.date)?.weight ?? "";
+  const duration = session.startedAt && session.updatedAt && session.updatedAt > session.startedAt
+    ? formatDuration(session.updatedAt - session.startedAt)
+    : null;
 
   const handleDelete = () => {
     const ok = window.confirm(
@@ -769,7 +785,7 @@ function SessionDetailScreen({ session, bodyweight, onBack, onDelete, onUpdate, 
         </button>
         <div className="wt-header-mid">
           <span className="wt-header-plan">Day {session.planId} · {formatDate(session.date)}</span>
-          <span className="wt-header-sub">{data.subtitle}</span>
+          <span className="wt-header-sub">{data.subtitle}{duration ? ` · ${duration}` : ""}</span>
         </div>
         <span className={`wt-save-pill ${saveState}`}>
           {saveState === "saving" ? "Saving…" : saveState === "saved" ? <><Check size={12} strokeWidth={3} /> Saved</> : ""}
@@ -1060,6 +1076,14 @@ function BodyweightLogScreen({ bodyweight, onBack, onChange, onDelete, saveState
 function formatDate(d) {
   const date = new Date(d + "T00:00:00");
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatDuration(ms) {
+  const totalMin = Math.max(0, Math.round(ms / 60000));
+  if (totalMin < 1) return "<1 min";
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h ${m}m` : `${totalMin} min`;
 }
 
 const COLORS = {
