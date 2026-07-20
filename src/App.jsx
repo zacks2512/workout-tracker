@@ -109,6 +109,13 @@ function nextEffort(current) {
   return EFFORT_STATES[(idx + 1) % EFFORT_STATES.length];
 }
 
+function effortIcon(value, size = 13) {
+  if (value === "easy") return <TrendingUp size={size} />;
+  if (value === "ok") return <Check size={size} />;
+  if (value === "fail") return <Flame size={size} />;
+  return null;
+}
+
 function EffortToggle({ value, onChange }) {
   return (
     <button
@@ -117,9 +124,7 @@ function EffortToggle({ value, onChange }) {
       onClick={() => onChange(nextEffort(value))}
       aria-label={`Set effort: ${value || "not set"}. Tap to change.`}
     >
-      {value === "easy" && <TrendingUp size={13} />}
-      {value === "ok" && <Check size={13} />}
-      {value === "fail" && <Flame size={13} />}
+      {effortIcon(value)}
     </button>
   );
 }
@@ -549,8 +554,11 @@ function LastSessionDropdown({ sessions, exId, mode }) {
           {last.sets.map((s, i) => (
             <div key={i} className="wt-lastsession-row">
               <span className="wt-lastsession-label">Set {i + 1}</span>
-              <span className="wt-lastsession-value">
-                {mode === "time" ? `${s.reps || "—"} sec` : `${s.weight || "—"} kg × ${s.reps || "—"}`}
+              <span className="wt-lastsession-right">
+                <span className="wt-lastsession-value">
+                  {mode === "time" ? `${s.reps || "—"} sec` : `${s.weight || "—"} kg × ${s.reps || "—"}`}
+                </span>
+                {s.effort && <span className={`wt-effort-badge ${s.effort}`}>{effortIcon(s.effort, 12)}</span>}
               </span>
             </div>
           ))}
@@ -1174,7 +1182,12 @@ const CSS = `
   .wt-lastsession-body { padding: 0 10px 8px; display: flex; flex-direction: column; gap: 4px; }
   .wt-lastsession-row { display: flex; justify-content: space-between; font-size: 12px; }
   .wt-lastsession-label { color: ${COLORS.textDim}; }
+  .wt-lastsession-right { display: flex; align-items: center; gap: 8px; }
   .wt-lastsession-value { color: ${COLORS.text}; font-weight: 600; }
+  .wt-effort-badge { display: flex; align-items: center; color: ${COLORS.textDim}; }
+  .wt-effort-badge.easy { color: #6FA88A; }
+  .wt-effort-badge.ok { color: ${COLORS.textDim}; }
+  .wt-effort-badge.fail { color: #C4694F; }
   .wt-sets { display: flex; flex-direction: column; gap: 8px; }
   .wt-set-row { display: flex; align-items: center; gap: 8px; }
   .wt-set-label { font-size: 12px; color: ${COLORS.textDim}; width: 44px; flex-shrink: 0; }
