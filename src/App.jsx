@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Check, ArrowLeft, Dumbbell, Clock3, History, Scale, TrendingUp, TrendingDown, ClipboardCopy, Trash2, CalendarDays, Timer } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Check, ArrowLeft, Dumbbell, Clock3, History, Scale, TrendingUp, TrendingDown, ClipboardCopy, Trash2, CalendarDays, Timer, Flame } from "lucide-react";
 
 const STORAGE_KEY = "workout-data";
 
@@ -101,6 +101,27 @@ function lastSessionSets(sessions, exId, excludeDate) {
     if (sets.length) return { date: s.date, sets };
   }
   return null;
+}
+
+const EFFORT_STATES = [null, "easy", "ok", "fail"];
+function nextEffort(current) {
+  const idx = EFFORT_STATES.indexOf(current || null);
+  return EFFORT_STATES[(idx + 1) % EFFORT_STATES.length];
+}
+
+function EffortToggle({ value, onChange }) {
+  return (
+    <button
+      type="button"
+      className={`wt-effort-btn ${value || "unset"}`}
+      onClick={() => onChange(nextEffort(value))}
+      aria-label={`Set effort: ${value || "not set"}. Tap to change.`}
+    >
+      {value === "easy" && <TrendingUp size={13} />}
+      {value === "ok" && <Check size={13} />}
+      {value === "fail" && <Flame size={13} />}
+    </button>
+  );
 }
 
 function exerciseName(exId) {
@@ -685,6 +706,7 @@ function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle
                             />
                           </>
                         )}
+                        <EffortToggle value={set.effort} onChange={(v) => onUpdate(ex.id, idx, "effort", v)} />
                       </div>
                     ))}
                   </div>
@@ -795,6 +817,7 @@ function SessionDetailScreen({ session, bodyweight, onBack, onDelete, onUpdate, 
                           />
                         </>
                       )}
+                      <EffortToggle value={set.effort} onChange={(v) => onUpdate(session, ex.id, idx, "effort", v)} />
                     </div>
                   ))}
                 </div>
@@ -1158,6 +1181,10 @@ const CSS = `
   .wt-input { background: ${COLORS.bg3}; border: 1px solid rgba(237,235,228,0.08); color: ${COLORS.text}; border-radius: 8px; padding: 10px 10px; font-size: 15px; width: 100%; min-width: 0; }
   .wt-input:focus { outline: none; border-color: ${COLORS.accent}; }
   .wt-x { color: ${COLORS.textDim}; font-size: 12px; flex-shrink: 0; }
+  .wt-effort-btn { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid rgba(237,235,228,0.15); background: none; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; color: transparent; padding: 0; }
+  .wt-effort-btn.easy { border-color: #6FA88A; color: #6FA88A; }
+  .wt-effort-btn.ok { border-color: ${COLORS.textDim}; color: ${COLORS.textDim}; }
+  .wt-effort-btn.fail { border-color: #C4694F; color: #C4694F; }
   .wt-footer-note { text-align: center; font-size: 11px; color: ${COLORS.textDim}; margin-top: 18px; }
 
   .wt-with-timer { padding-bottom: 104px; }
