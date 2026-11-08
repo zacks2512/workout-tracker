@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import BackupPanel from "./BackupPanel.jsx";
 import { ChevronDown, ChevronLeft, ChevronRight, Check, ArrowLeft, Dumbbell, Clock3, History, Scale, TrendingUp, TrendingDown, ClipboardCopy, Trash2, CalendarDays, Timer, Flame } from "lucide-react";
 
 const STORAGE_KEY = "workout-data";
@@ -331,6 +332,20 @@ export default function WorkoutTracker() {
   };
 
   const recentSessions = [...sessions].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 4);
+
+  const restoreBackup = (backup) => {
+    const nextLastValues = computeLastValues(backup.sessions);
+    // Write before changing state: quota/storage failures must not replace current data.
+    saveData({ lastValues: nextLastValues, sessions: backup.sessions, bodyweight: backup.bodyweight });
+    clearTimeout(saveTimer.current);
+    setLastValues(nextLastValues);
+    setSessions(backup.sessions);
+    setBodyweight(backup.bodyweight);
+    setEntries({});
+    setViewingSession(null);
+    setPlan(null);
+    setSaveState("saved");
+  };
   const today = todayStr();
   const todaysBodyweight = bodyweight.find((b) => b.date === today)?.weight ?? "";
 
@@ -356,6 +371,8 @@ export default function WorkoutTracker() {
           onOpenSession={openSession}
           onOpenCalendar={() => setScreen("calendar")}
           onOpenBodyweightLog={() => setScreen("bwlog")}
+          sessions={sessions}
+          onRestore={restoreBackup}
         />
       ) : screen === "workout" ? (
         <WorkoutScreen
@@ -402,7 +419,7 @@ export default function WorkoutTracker() {
   );
 }
 
-function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, hasData, onOpenSession, onOpenCalendar, onOpenBodyweightLog }) {
+function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, hasData, onOpenSession, onOpenCalendar, onOpenBodyweightLog, sessions, onRestore }) {
   const sortedBW = [...bodyweight].filter((b) => b.weight !== "").sort((a, b) => (a.date < b.date ? 1 : -1));
   const latestBW = sortedBW[0];
   const prevBW = sortedBW[1];
@@ -485,6 +502,7 @@ function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, h
           {copyState === "copied" ? "Copied! Paste into Google Sheets" : copyState === "error" ? "Couldn't copy — try again" : "Copy data for Google Sheets"}
         </button>
       )}
+      <BackupPanel sessions={sessions} bodyweight={bodyweight} onRestore={onRestore} />
     </div>
   );
 }
@@ -1172,6 +1190,20 @@ const CSS = `
 
   .wt-export { margin-top: 24px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: ${COLORS.bg2}; border: 1px dashed rgba(237,235,228,0.15); color: ${COLORS.textDim}; font-size: 12.5px; font-weight: 600; padding: 12px; border-radius: 12px; cursor: pointer; }
   .wt-export:active { border-color: ${COLORS.accent}; color: ${COLORS.accent}; }
+  .wt-backup { margin-top: 24px; padding: 16px; background: ${COLORS.bg2}; border-radius: 12px; border: 1px solid rgba(237,235,228,0.08); }
+  .wt-backup h2 { margin: 0 0 10px; font-size: 16px; }
+  .wt-backup p { color: ${COLORS.textDim}; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+  .wt-backup .wt-backup-reminder { color: ${COLORS.accent}; }
+  .wt-backup-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .wt-backup-actions button { min-height: 44px; flex: 1 1 130px; padding: 10px; background: ${COLORS.bg3}; border: 1px solid rgba(237,235,228,0.15); border-radius: 8px; color: ${COLORS.text}; font: inherit; font-size: 12px; cursor: pointer; }
+  .wt-backup-actions button:disabled { opacity: 0.45; cursor: default; }
+  .wt-backup-actions button:focus-visible { outline: 2px solid ${COLORS.accent}; outline-offset: 2px; }
+  .wt-backup-confirm { margin-top: 12px; border-top: 1px solid ${COLORS.accentDim}; padding-top: 12px; font-size: 13px; }
+  .wt-backup .wt-backup-error { color: #F2A18A; }
+  .wt-backup-editor { margin-top: 14px; }
+  .wt-backup-editor label { display: block; font-size: 12px; margin-bottom: 8px; color: ${COLORS.textDim}; }
+  .wt-backup-editor textarea { display: block; width: 100%; min-height: 140px; resize: vertical; padding: 10px; margin-bottom: 8px; background: ${COLORS.bg3}; border: 1px solid rgba(237,235,228,0.15); border-radius: 8px; color: ${COLORS.text}; font: 13px monospace; }
+  .wt-backup-editor textarea:focus-visible { outline: 2px solid ${COLORS.accent}; outline-offset: 2px; }
 
   .wt-workout { max-width: 480px; margin: 0 auto; padding-bottom: 40px; }
   .wt-header { display: flex; align-items: center; gap: 12px; padding: 18px 16px; position: sticky; top: 0; background: ${COLORS.bg}; z-index: 5; border-bottom: 1px solid rgba(237,235,228,0.06); }
@@ -1239,3 +1271,4 @@ const CSS = `
 
   input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 `;
+
