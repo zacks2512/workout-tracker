@@ -11,14 +11,14 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Workout Tracker',
-        short_name: 'Workout',
-        description: 'Personal 3-day workout and bodyweight log',
+        name: 'היום שלי — אימונים ותזונה',
+        short_name: 'היום שלי',
+        description: 'מעקב אישי אחר תזונה, אימונים ומשקל',
         start_url: '/workout-tracker/',
         scope: '/workout-tracker/',
         display: 'standalone',
-        background_color: '#15161A',
-        theme_color: '#15161A',
+        background_color: '#F7F8FA',
+        theme_color: '#F7F8FA',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -31,3 +31,4 @@ export default defineConfig({
     }),
   ],
 })
+

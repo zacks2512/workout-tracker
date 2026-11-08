@@ -1,52 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import BackupPanel from "./BackupPanel.jsx";
+import { PLANS, ACTIVE_PLANS } from "./workoutPlans.js";
+import { localDate, DEFAULT_SETTINGS, freshDailyLog } from "./wellness.js";
+import { TodayScreen, ProgressScreen, PrepScreen, SettingsScreen, BottomNav } from "./WellnessScreens.jsx";
+import "./wellness.css";
 import { ChevronDown, ChevronLeft, ChevronRight, Check, ArrowLeft, Dumbbell, Clock3, History, Scale, TrendingUp, TrendingDown, ClipboardCopy, Trash2, CalendarDays, Timer, Flame } from "lucide-react";
 
 const STORAGE_KEY = "workout-data";
 
-const PLANS = {
-  A: {
-    id: "A",
-    subtitle: "Squat Focus",
-    exercises: [
-      { id: "a1", name: "Barbell Back Squat", sets: 4, target: "8–10 reps", mode: "weight", howTo: "Bar racked on your upper traps, squat until thighs pass parallel, then drive up through your heels." },
-      { id: "a2", name: "Flat Bench Press", sets: 4, target: "8–10 reps", mode: "weight", howTo: "Lower the bar to your chest with elbows near 45°, press back up to full lockout." },
-      { id: "a3", name: "Bent-Over Barbell Row", sets: 3, target: "10–12 reps", mode: "weight", howTo: "Hinge to about 45°, pull the bar to your lower ribs, squeeze your shoulder blades together." },
-      { id: "a4", name: "Seated Dumbbell Shoulder Press", sets: 3, target: "10–12 reps", mode: "weight", howTo: "Press the dumbbells from shoulder height straight overhead without arching your lower back." },
-      { id: "a5", name: "Lying Leg Curl", sets: 3, target: "12–15 reps", mode: "weight", howTo: "Curl the pad toward your glutes, pause briefly, then lower it slowly." },
-      { id: "a6", name: "Lateral Raise", sets: 3, target: "12–15 reps", mode: "weight", howTo: "Raise the dumbbells out to your sides to shoulder height, leading with your elbows." },
-      { id: "a7", name: "Plank", sets: 3, target: "45 sec hold", mode: "time", howTo: "Hold a straight line from shoulders to heels, brace your core, keep your hips from sagging." },
-    ],
-  },
-  B: {
-    id: "B",
-    subtitle: "Hinge Focus",
-    exercises: [
-      { id: "b1", name: "Romanian Deadlift", sets: 4, target: "8–10 reps", mode: "weight", howTo: "Push your hips back with a slight knee bend, lower the bar along your legs, feel a hamstring stretch." },
-      { id: "b2", name: "Incline Dumbbell Press", sets: 4, target: "10–12 reps", mode: "weight", howTo: "On a 30–45° incline, press the dumbbells up and slightly in until your arms extend." },
-      { id: "b3", name: "Lat Pulldown", sets: 3, target: "10–12 reps", mode: "weight", howTo: "Pull the bar to your upper chest, lead with your elbows, control the return." },
-      { id: "b4", name: "Walking Lunges", sets: 3, target: "12 reps / leg", mode: "weight", howTo: "Step forward into a lunge, drop your back knee toward the floor, push off to the next step." },
-      { id: "b5", name: "Seated Cable Row", sets: 3, target: "10–12 reps", mode: "weight", howTo: "Pull the handle to your stomach, squeeze your back, keep your torso upright." },
-      { id: "b6", name: "Dumbbell Biceps Curl", sets: 3, target: "12–15 reps", mode: "weight", howTo: "Curl the dumbbells up without swinging your elbows forward, squeeze at the top, lower under control." },
-      { id: "b7", name: "Plank", sets: 3, target: "45 sec hold", mode: "time", howTo: "Hold a straight line from shoulders to heels, brace your core, keep your hips from sagging." },
-    ],
-  },
-  C: {
-    id: "C",
-    subtitle: "Press & Pull Balance",
-    exercises: [
-      { id: "c1", name: "Flat Dumbbell Press", sets: 4, target: "8–10 reps", mode: "weight", howTo: "Press the dumbbells from chest height straight up until your arms extend, without locking out hard at the top." },
-      { id: "c2", name: "Seated Dip Machine", sets: 4, target: "8–10 reps", mode: "weight", howTo: "Press down through the handles until your arms extend, lean slightly forward to keep tension on your chest." },
-      { id: "c3", name: "Incline Dumbbell Curl", sets: 3, target: "10–12 reps", mode: "weight", howTo: "Seated on an incline bench, let your arms hang straight down and curl without swinging your shoulders forward." },
-      { id: "c4", name: "Hammer Curl", sets: 3, target: "10–12 reps", mode: "weight", howTo: "Curl the dumbbells with palms facing each other the whole rep, keep your elbows pinned to your sides." },
-      { id: "c5", name: "Chest-Supported Row", sets: 3, target: "10–12 reps", mode: "weight", howTo: "Chest braced on the pad, row the handles to your ribs, squeeze your back." },
-      { id: "c6", name: "Triceps Pushdown", sets: 3, target: "12–15 reps", mode: "weight", howTo: "Keep your elbows pinned to your sides, push the bar down to full extension, control the return." },
-      { id: "c7", name: "Plank", sets: 3, target: "45 sec hold", mode: "time", howTo: "Hold a straight line from shoulders to heels, brace your core, keep your hips from sagging." },
-    ],
-  },
-};
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = localDate;
 const emptyEntries = (plan) => {
   const e = {};
   PLANS[plan].exercises.forEach((ex) => {
@@ -60,7 +23,7 @@ function loadData() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
     return JSON.parse(raw);
-  } catch (e) {
+  } catch {
     return {};
   }
 }
@@ -123,7 +86,7 @@ function EffortToggle({ value, onChange }) {
       type="button"
       className={`wt-effort-btn ${value || "unset"}`}
       onClick={() => onChange(nextEffort(value))}
-      aria-label={`Set effort: ${value || "not set"}. Tap to change.`}
+      aria-label={`מאמץ בסט: ${value === "easy" ? "קל" : value === "ok" ? "מתאים" : value === "fail" ? "קשה" : "לא סומן"}. לחיצה לשינוי.`}
     >
       {effortIcon(value)}
     </button>
@@ -178,23 +141,33 @@ async function copyToClipboard(text) {
 }
 
 export default function WorkoutTracker() {
-  const [screen, setScreen] = useState("home"); // home | workout | session | calendar | bwlog
+  const [screen, setScreen] = useState("today"); // today | home | workout | session | calendar | bwlog | progress | prep | settings
   const [plan, setPlan] = useState(null);
   const [viewingSession, setViewingSession] = useState(null);
   const [sessionReturnTo, setSessionReturnTo] = useState("home");
+  const [weightReturnTo, setWeightReturnTo] = useState("today");
+  const [calendarReturnTo, setCalendarReturnTo] = useState("home");
   const [entries, setEntries] = useState({});
   const [expanded, setExpanded] = useState({});
   const [lastValues, setLastValues] = useState({});
   const [sessions, setSessions] = useState([]);
   const [bodyweight, setBodyweight] = useState([]);
+  const [dailyLogs, setDailyLogs] = useState({});
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [storageError, setStorageError] = useState("");
+  const dataRef = useRef({});
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
   const [copyState, setCopyState] = useState("idle"); // idle | copied | error
-  const saveTimer = useRef(null);
   const copyTimer = useRef(null);
+
+  useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" }); }, [screen]);
 
   useEffect(() => {
     const data = loadData();
+    dataRef.current = { ...data, dailyLogs: data.dailyLogs || {}, settings: { ...DEFAULT_SETTINGS, ...data.settings } };
+    setDailyLogs(dataRef.current.dailyLogs);
+    setSettings(dataRef.current.settings);
     setLastValues(data.lastValues || {});
     setSessions(data.sessions || []);
     setBodyweight(data.bodyweight || []);
@@ -202,17 +175,41 @@ export default function WorkoutTracker() {
   }, []);
 
   const persist = useCallback((nextLastValues, nextSessions, nextBodyweight) => {
-    setSaveState("saving");
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      try {
-        saveData({ lastValues: nextLastValues, sessions: nextSessions, bodyweight: nextBodyweight });
-        setSaveState("saved");
-      } catch (e) {
-        setSaveState("idle");
-      }
-    }, 500);
+    const next = { ...dataRef.current, lastValues: nextLastValues, sessions: nextSessions, bodyweight: nextBodyweight };
+    dataRef.current = next;
+    try {
+      saveData(next);
+      setSaveState("saved");
+      setStorageError("");
+    } catch {
+      setSaveState("error");
+      setStorageError("השמירה במכשיר נכשלה. הנתונים הנוכחיים זמינים להעתקת גיבוי; אל תסגרו את הדף לפני הגיבוי.");
+    }
   }, []);
+
+  const saveWellness = (changes) => {
+    const next = { ...dataRef.current, ...changes };
+    try {
+      saveData(next);
+      dataRef.current = next;
+      if (changes.dailyLogs) setDailyLogs(changes.dailyLogs);
+      if (changes.settings) setSettings(changes.settings);
+      setStorageError("");
+      setSaveState("saved");
+      return true;
+    } catch {
+      setStorageError("לא ניתן לשמור במכשיר. השינוי לא נשמר; נסו שוב או העתיקו גיבוי.");
+      return false;
+    }
+  };
+  const updateDay = (date, change) => {
+    const logs = dataRef.current.dailyLogs || {};
+    const day = logs[date] || freshDailyLog();
+    return saveWellness({ dailyLogs: { ...logs, [date]: change(day) } });
+  };
+
+  const openWeightLog = () => { setWeightReturnTo(screen); setScreen("bwlog"); };
+  const openCalendar = () => { setCalendarReturnTo(screen); setScreen("calendar"); };
 
   const openPlan = (planId) => {
     setPlan(planId);
@@ -255,6 +252,10 @@ export default function WorkoutTracker() {
   };
 
   const updateBodyweight = (value, date = todayStr()) => {
+    if (value !== "" && (!Number.isFinite(Number(value)) || Number(value) <= 0 || Number(value) > 1000)) {
+      setStorageError("יש להזין משקל תקין גדול מאפס.");
+      return;
+    }
     setBodyweight((prev) => {
       const idx = prev.findIndex((b) => b.date === date);
       const next = idx >= 0 ? prev.map((b, i) => (i === idx ? { date, weight: value } : b)) : [...prev, { date, weight: value }];
@@ -295,8 +296,10 @@ export default function WorkoutTracker() {
 
   const deleteSession = (session) => {
     const nextSessions = sessions.filter((s) => !(s.date === session.date && s.planId === session.planId));
+    const nextLastValues = computeLastValues(nextSessions);
     setSessions(nextSessions);
-    persist(lastValues, nextSessions, bodyweight);
+    setLastValues(nextLastValues);
+    persist(nextLastValues, nextSessions, bodyweight);
     setScreen(sessionReturnTo);
   };
 
@@ -325,7 +328,7 @@ export default function WorkoutTracker() {
     try {
       await copyToClipboard(buildExportText(sessions, bodyweight));
       setCopyState("copied");
-    } catch (e) {
+    } catch {
       setCopyState("error");
     }
     copyTimer.current = setTimeout(() => setCopyState("idle"), 2000);
@@ -336,8 +339,13 @@ export default function WorkoutTracker() {
   const restoreBackup = (backup) => {
     const nextLastValues = computeLastValues(backup.sessions);
     // Write before changing state: quota/storage failures must not replace current data.
-    saveData({ lastValues: nextLastValues, sessions: backup.sessions, bodyweight: backup.bodyweight });
-    clearTimeout(saveTimer.current);
+    const next = { lastValues: nextLastValues, sessions: backup.sessions, bodyweight: backup.bodyweight,
+      dailyLogs: backup.dailyLogs || {}, settings: { ...DEFAULT_SETTINGS, ...backup.settings } };
+    saveData(next);
+    dataRef.current = next;
+    setDailyLogs(next.dailyLogs);
+    setSettings(next.settings);
+    setStorageError("");
     setLastValues(nextLastValues);
     setSessions(backup.sessions);
     setBodyweight(backup.bodyweight);
@@ -352,15 +360,27 @@ export default function WorkoutTracker() {
   if (loading) {
     return (
       <div style={{ background: COLORS.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: COLORS.textDim }}>
-        Loading…
+        טוען…
       </div>
     );
   }
 
   return (
-    <div style={{ background: COLORS.bg, minHeight: "100vh", fontFamily: FONT, color: COLORS.text }}>
+    <div className="app-shell" dir="rtl" style={{ background: COLORS.bg, minHeight: "100vh", fontFamily: FONT, color: COLORS.text }}>
       <style>{CSS}</style>
-      {screen === "home" ? (
+      {storageError && <div className="storage-error" role="alert">{storageError}<button onClick={() => setScreen("settings")}>לגיבוי</button></div>}
+      {screen === "today" ? (
+        <TodayScreen dailyLogs={dailyLogs} settings={settings} bodyweight={bodyweight} sessions={sessions}
+          onUpdateDay={updateDay} onSettings={() => setScreen("settings")} onWeight={openWeightLog}
+          onWorkout={() => openPlan(new Date().getDay() === 3 ? "E" : "D")} />
+      ) : screen === "progress" ? (
+        <ProgressScreen dailyLogs={dailyLogs} settings={settings} sessions={sessions} bodyweight={bodyweight} onWeight={openWeightLog} onHistory={openCalendar} />
+      ) : screen === "prep" ? <PrepScreen /> : screen === "settings" ? (
+        <SettingsScreen settings={settings} onSave={(next) => saveWellness({ settings: next })} onBack={() => setScreen("today")}>
+          <BackupPanel sessions={sessions} bodyweight={bodyweight} dailyLogs={dailyLogs} settings={settings} onRestore={restoreBackup} />
+          <button className="secondary full" onClick={handleExport}>{copyState === "copied" ? "הטבלה הועתקה" : "העתקת טבלת אימונים לגיליון"}</button>
+        </SettingsScreen>
+      ) : screen === "home" ? (
         <HomeScreen
           onPick={openPlan}
           recentSessions={recentSessions}
@@ -369,10 +389,12 @@ export default function WorkoutTracker() {
           copyState={copyState}
           hasData={sessions.length > 0 || bodyweight.length > 0}
           onOpenSession={openSession}
-          onOpenCalendar={() => setScreen("calendar")}
-          onOpenBodyweightLog={() => setScreen("bwlog")}
+          onOpenCalendar={openCalendar}
+          onOpenBodyweightLog={openWeightLog}
           sessions={sessions}
           onRestore={restoreBackup}
+          dailyLogs={dailyLogs}
+          settings={settings}
         />
       ) : screen === "workout" ? (
         <WorkoutScreen
@@ -393,13 +415,13 @@ export default function WorkoutTracker() {
       ) : screen === "calendar" ? (
         <CalendarScreen
           sessions={sessions}
-          onBack={() => setScreen("home")}
+          onBack={() => setScreen(calendarReturnTo)}
           onOpenSession={(s) => openSession(s, "calendar")}
         />
       ) : screen === "bwlog" ? (
         <BodyweightLogScreen
           bodyweight={bodyweight}
-          onBack={() => setScreen("home")}
+          onBack={() => setScreen(weightReturnTo)}
           onChange={updateBodyweight}
           onDelete={deleteBodyweightEntry}
           saveState={saveState}
@@ -415,11 +437,12 @@ export default function WorkoutTracker() {
           saveState={saveState}
         />
       )}
+      <BottomNav screen={screen} onNavigate={setScreen} />
     </div>
   );
 }
 
-function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, hasData, onOpenSession, onOpenCalendar, onOpenBodyweightLog, sessions, onRestore }) {
+function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, hasData, onOpenSession, onOpenCalendar, onOpenBodyweightLog, sessions, onRestore, dailyLogs, settings }) {
   const sortedBW = [...bodyweight].filter((b) => b.weight !== "").sort((a, b) => (a.date < b.date ? 1 : -1));
   const latestBW = sortedBW[0];
   const prevBW = sortedBW[1];
@@ -427,46 +450,47 @@ function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, h
 
   return (
     <div className="wt-home">
-      <div className="wt-eyebrow">Hypertrophy · 3-day full body</div>
-      <h1 className="wt-title">Pick today's session</h1>
+      <div className="wt-eyebrow">שני אימונים בשבוע • עד שעה</div>
+      <h1 className="wt-title">האימונים שלי</h1>
       <div className="wt-plate-row">
-        {Object.values(PLANS).map((p) => (
+        {ACTIVE_PLANS.map((id) => PLANS[id]).map((p) => (
           <button key={p.id} className="wt-plate" onClick={() => onPick(p.id)}>
             <span className="wt-plate-ring">
-              <span className="wt-plate-letter">{p.id}</span>
+              <span className="wt-plate-letter">{p.id === "D" ? "שני" : "רביעי"}</span>
             </span>
             <span className="wt-plate-sub">{p.subtitle}</span>
           </button>
         ))}
       </div>
 
+      <details className="legacy-plans"><summary>תוכניות קודמות A / B / C</summary><div className="activity-types">{["A", "B", "C"].map((id) => <button className="secondary" key={id} onClick={() => onPick(id)}>תוכנית {id}</button>)}</div></details>
       {latestBW ? (
         <div className="wt-bw-summary">
           <div className="wt-bw-summary-top">
             <div className="wt-bw-summary-left">
               <Scale size={16} className="wt-bw-summary-icon" />
               <div>
-                <div className="wt-bw-summary-value">{latestBW.weight} kg</div>
+                <div className="wt-bw-summary-value">{latestBW.weight} ק״ג</div>
                 <div className="wt-bw-summary-date">{formatDate(latestBW.date)}</div>
               </div>
             </div>
             {delta !== null && !Number.isNaN(delta) && (
               <div className={`wt-bw-delta ${delta > 0 ? "up" : delta < 0 ? "down" : ""}`}>
                 {delta > 0 ? <TrendingUp size={13} /> : delta < 0 ? <TrendingDown size={13} /> : null}
-                {delta === 0 ? "no change" : `${delta > 0 ? "+" : ""}${delta.toFixed(1)} kg`}
+                {delta === 0 ? "ללא שינוי" : `${delta > 0 ? "+" : ""}${delta.toFixed(1)} ק״ג`}
               </div>
             )}
           </div>
           <BodyweightTrend bodyweight={bodyweight} />
           <button className="wt-cal-link wt-bw-editlink" onClick={onOpenBodyweightLog}>
             <Scale size={13} />
-            Edit bodyweight log
+            עריכת שקילות
           </button>
         </div>
       ) : (
         <button className="wt-bw-empty-cta" onClick={onOpenBodyweightLog}>
           <Scale size={16} />
-          Log your bodyweight
+          הוספת שקילה
         </button>
       )}
 
@@ -475,11 +499,11 @@ function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, h
           <div className="wt-recent-head">
             <div className="wt-recent-head-left">
               <History size={14} strokeWidth={2.5} />
-              <span>Recent sessions</span>
+              <span>אימונים אחרונים</span>
             </div>
             <button className="wt-cal-link" onClick={onOpenCalendar}>
               <CalendarDays size={13} />
-              Full history
+              כל ההיסטוריה
             </button>
           </div>
           {recentSessions.map((s) => {
@@ -488,8 +512,8 @@ function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, h
             return (
               <button key={s.date + s.planId} className="wt-recent-row" onClick={() => onOpenSession(s)}>
                 <span className="wt-recent-date">{formatDate(s.date)}</span>
-                <span className="wt-recent-plan">Day {s.planId}</span>
-                <span className="wt-recent-progress">{done}/{total} logged</span>
+                <span className="wt-recent-plan">אימון {s.planId}</span>
+                <span className="wt-recent-progress">{done}/{total} תועדו</span>
               </button>
             );
           })}
@@ -499,10 +523,10 @@ function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, h
       {hasData && (
         <button className="wt-export" onClick={onExport}>
           <ClipboardCopy size={14} />
-          {copyState === "copied" ? "Copied! Paste into Google Sheets" : copyState === "error" ? "Couldn't copy — try again" : "Copy data for Google Sheets"}
+          {copyState === "copied" ? "הועתק! אפשר להדביק בגיליון" : copyState === "error" ? "ההעתקה נכשלה — נסו שוב" : "העתקת טבלת אימונים לגיליון"}
         </button>
       )}
-      <BackupPanel sessions={sessions} bodyweight={bodyweight} onRestore={onRestore} />
+      <BackupPanel sessions={sessions} bodyweight={bodyweight} dailyLogs={dailyLogs} settings={settings} onRestore={onRestore} />
     </div>
   );
 }
@@ -550,7 +574,7 @@ function BodyweightTrend({ bodyweight }) {
     .slice(-30)
     .map((b) => ({ date: b.date, value: parseFloat(b.weight) }));
 
-  return <Sparkline points={points} unit=" kg" wrapperClassName="wt-bw-trend" />;
+  return <Sparkline points={points} unit=" ק״ג" wrapperClassName="wt-bw-trend" />;
 }
 
 function ExerciseTrend({ sessions, exId, mode }) {
@@ -567,14 +591,14 @@ function LastSessionDropdown({ sessions, exId, mode }) {
   return (
     <div className="wt-lastsession">
       <button className="wt-lastsession-toggle" onClick={() => setOpen((o) => !o)}>
-        <span>Last session · {formatDate(last.date)}</span>
+        <span>האימון הקודם · {formatDate(last.date)}</span>
         <ChevronDown size={14} className={`wt-lastsession-chevron ${open ? "open" : ""}`} />
       </button>
       {open && (
         <div className="wt-lastsession-body">
           {last.sets.map((s, i) => (
             <div key={i} className="wt-lastsession-row">
-              <span className="wt-lastsession-label">Set {i + 1}</span>
+              <span className="wt-lastsession-label">סט {i + 1}</span>
               <span className="wt-lastsession-right">
                 <span className="wt-lastsession-value">
                   {mode === "time" ? `${s.reps || "—"} sec` : `${s.weight || "—"} kg × ${s.reps || "—"}`}
@@ -626,15 +650,15 @@ function RestTimer() {
     <div className={`wt-timer ${done ? "done" : ""}`}>
       {secondsLeft === null ? (
         <>
-          <span className="wt-timer-label"><Timer size={14} /> Rest</span>
+          <span className="wt-timer-label"><Timer size={14} /> מנוחה</span>
           {[45, 60, 90, 120].map((s) => (
             <button key={s} className="wt-timer-preset" onClick={() => start(s)}>{fmt(s)}</button>
           ))}
         </>
       ) : (
         <button className="wt-timer-running" onClick={reset}>
-          <span className="wt-timer-count">{done ? "Go!" : fmt(secondsLeft)}</span>
-          <span className="wt-timer-hint">{done ? "tap to reset" : "tap to cancel"}</span>
+          <span className="wt-timer-count">{done ? "אפשר להתחיל" : fmt(secondsLeft)}</span>
+          <span className="wt-timer-hint">{done ? "לחיצה לאיפוס" : "לחיצה לביטול"}</span>
         </button>
       )}
     </div>
@@ -656,15 +680,15 @@ function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle
   return (
     <div className="wt-workout wt-with-timer">
       <div className="wt-header">
-        <button className="wt-back" onClick={onBack} aria-label="Back">
+        <button className="wt-back" onClick={onBack} aria-label="חזרה">
           <ArrowLeft size={20} />
         </button>
         <div className="wt-header-mid">
-          <span className="wt-header-plan">Day {plan}</span>
+          <span className="wt-header-plan">אימון {plan}</span>
           <span className="wt-header-sub">{data.subtitle}{liveDuration ? ` · ${liveDuration}` : ""}</span>
         </div>
         <span className={`wt-save-pill ${saveState}`}>
-          {saveState === "saving" ? "Saving…" : saveState === "saved" ? <><Check size={12} strokeWidth={3} /> Saved</> : ""}
+          {saveState === "saving" ? "שומר…" : saveState === "saved" ? <><Check size={12} strokeWidth={3} /> נשמר</> : ""}
         </span>
       </div>
 
@@ -700,10 +724,10 @@ function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle
                   {last && (
                     <div className="wt-last-row">
                       <span>
-                        Last: {last.weight || "—"}{ex.mode === "time" ? "s" : "kg"}
+                        לאחרונה: {last.weight || "—"}{ex.mode === "time" ? "s" : "kg"}
                         {ex.mode !== "time" && last.reps ? ` × ${last.reps}` : ""}
                       </span>
-                      <button className="wt-use-last" onClick={() => onUseLast(ex.id)}>Use last</button>
+                      <button className="wt-use-last" onClick={() => onUseLast(ex.id)}>שימוש בערך האחרון</button>
                     </div>
                   )}
 
@@ -714,13 +738,14 @@ function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle
                   <div className="wt-sets">
                     {entries[ex.id]?.map((set, idx) => (
                       <div className="wt-set-row" key={idx}>
-                        <span className="wt-set-label">Set {idx + 1}</span>
+                        <span className="wt-set-label">סט {idx + 1}</span>
                         {ex.mode === "time" ? (
                           <input
                             className="wt-input"
                             type="number"
                             inputMode="numeric"
-                            placeholder="sec"
+                            placeholder="שניות"
+                            aria-label={`${ex.name} סט ${idx + 1} שניות`}
                             value={set.reps}
                             onChange={(e) => onUpdate(ex.id, idx, "reps", e.target.value)}
                           />
@@ -730,7 +755,8 @@ function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle
                               className="wt-input"
                               type="number"
                               inputMode="decimal"
-                              placeholder="kg"
+                              placeholder="ק״ג"
+                              aria-label={`${ex.name} סט ${idx + 1} משקל בק״ג`}
                               value={set.weight}
                               onChange={(e) => onUpdate(ex.id, idx, "weight", e.target.value)}
                             />
@@ -739,7 +765,8 @@ function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle
                               className="wt-input"
                               type="number"
                               inputMode="numeric"
-                              placeholder="reps"
+                              placeholder="חזרות"
+                              aria-label={`${ex.name} סט ${idx + 1} חזרות`}
                               value={set.reps}
                               onChange={(e) => onUpdate(ex.id, idx, "reps", e.target.value)}
                             />
@@ -759,22 +786,23 @@ function WorkoutScreen({ plan, sessions, entries, expanded, lastValues, onToggle
       <div className="wt-bw-card">
         <div className="wt-bw-head">
           <Scale size={14} />
-          <span>Bodyweight today</span>
+          <span>שקילה היום</span>
         </div>
         <div className="wt-bw-input-row">
           <input
             className="wt-input"
             type="number"
             inputMode="decimal"
-            placeholder="e.g. 78.5"
+            placeholder="משקל בק״ג"
+            aria-label="משקל גוף היום בק״ג"
             value={bodyweightValue}
             onChange={(e) => onBodyweightChange(e.target.value)}
           />
-          <span className="wt-bw-unit">kg</span>
+          <span className="wt-bw-unit">ק״ג</span>
         </div>
       </div>
 
-      <div className="wt-footer-note">Entries save automatically as you type.</div>
+      <div className="wt-footer-note">הנתונים נשמרים אוטומטית במכשיר בזמן ההקלדה.</div>
 
       <RestTimer />
     </div>
@@ -790,7 +818,7 @@ function SessionDetailScreen({ session, bodyweight, onBack, onDelete, onUpdate, 
 
   const handleDelete = () => {
     const ok = window.confirm(
-      `Delete your Day ${session.planId} log from ${formatDate(session.date)}? This can't be undone.`
+      `למחוק את אימון ${session.planId} מ־${formatDate(session.date)}? לא ניתן לבטל את המחיקה.`
     );
     if (ok) onDelete(session);
   };
@@ -798,15 +826,15 @@ function SessionDetailScreen({ session, bodyweight, onBack, onDelete, onUpdate, 
   return (
     <div className="wt-workout">
       <div className="wt-header">
-        <button className="wt-back" onClick={onBack} aria-label="Back">
+        <button className="wt-back" onClick={onBack} aria-label="חזרה">
           <ArrowLeft size={20} />
         </button>
         <div className="wt-header-mid">
-          <span className="wt-header-plan">Day {session.planId} · {formatDate(session.date)}</span>
+          <span className="wt-header-plan">אימון {session.planId} · {formatDate(session.date)}</span>
           <span className="wt-header-sub">{data.subtitle}{duration ? ` · ${duration}` : ""}</span>
         </div>
         <span className={`wt-save-pill ${saveState}`}>
-          {saveState === "saving" ? "Saving…" : saveState === "saved" ? <><Check size={12} strokeWidth={3} /> Saved</> : ""}
+          {saveState === "saving" ? "שומר…" : saveState === "saved" ? <><Check size={12} strokeWidth={3} /> נשמר</> : ""}
         </span>
       </div>
 
@@ -828,13 +856,13 @@ function SessionDetailScreen({ session, bodyweight, onBack, onDelete, onUpdate, 
                 <div className="wt-sets">
                   {sets.map((set, idx) => (
                     <div className="wt-set-row" key={idx}>
-                      <span className="wt-set-label">Set {idx + 1}</span>
+                      <span className="wt-set-label">סט {idx + 1}</span>
                       {ex.mode === "time" ? (
                         <input
                           className="wt-input"
                           type="number"
                           inputMode="numeric"
-                          placeholder="sec"
+                          placeholder="שניות"
                           value={set.reps}
                           onChange={(e) => onUpdate(session, ex.id, idx, "reps", e.target.value)}
                         />
@@ -844,7 +872,7 @@ function SessionDetailScreen({ session, bodyweight, onBack, onDelete, onUpdate, 
                             className="wt-input"
                             type="number"
                             inputMode="decimal"
-                            placeholder="kg"
+                            placeholder="ק״ג"
                             value={set.weight}
                             onChange={(e) => onUpdate(session, ex.id, idx, "weight", e.target.value)}
                           />
@@ -853,7 +881,7 @@ function SessionDetailScreen({ session, bodyweight, onBack, onDelete, onUpdate, 
                             className="wt-input"
                             type="number"
                             inputMode="numeric"
-                            placeholder="reps"
+                            placeholder="חזרות"
                             value={set.reps}
                             onChange={(e) => onUpdate(session, ex.id, idx, "reps", e.target.value)}
                           />
@@ -872,30 +900,30 @@ function SessionDetailScreen({ session, bodyweight, onBack, onDelete, onUpdate, 
       <div className="wt-bw-card">
         <div className="wt-bw-head">
           <Scale size={14} />
-          <span>Bodyweight that day</span>
+          <span>שקילה ביום האימון</span>
         </div>
         <div className="wt-bw-input-row">
           <input
             className="wt-input"
             type="number"
             inputMode="decimal"
-            placeholder="e.g. 78.5"
+            placeholder="משקל בק״ג"
             value={bwValue}
             onChange={(e) => onBodyweightChange(e.target.value)}
           />
-          <span className="wt-bw-unit">kg</span>
+          <span className="wt-bw-unit">ק״ג</span>
         </div>
       </div>
 
       <button className="wt-delete-btn" onClick={handleDelete}>
         <Trash2 size={14} />
-        Delete this session
+        מחיקת האימון
       </button>
     </div>
   );
 }
 
-const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+const WEEKDAY_LABELS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 
 function getMonthGrid(year, month) {
   const firstWeekday = new Date(year, month, 1).getDay();
@@ -916,7 +944,7 @@ function CalendarScreen({ sessions, onBack, onOpenSession }) {
   const [selectedDate, setSelectedDate] = useState(null);
 
   const cells = getMonthGrid(view.year, view.month);
-  const monthLabel = new Date(view.year, view.month, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const monthLabel = new Date(view.year, view.month, 1).toLocaleDateString("he-IL", { month: "long", year: "numeric" });
   const todayStr2 = todayStr();
 
   const goMonth = (delta) => {
@@ -936,21 +964,21 @@ function CalendarScreen({ sessions, onBack, onOpenSession }) {
   return (
     <div className="wt-workout">
       <div className="wt-header">
-        <button className="wt-back" onClick={onBack} aria-label="Back">
+        <button className="wt-back" onClick={onBack} aria-label="חזרה">
           <ArrowLeft size={20} />
         </button>
         <div className="wt-header-mid">
-          <span className="wt-header-plan">Workout history</span>
+          <span className="wt-header-plan">היסטוריית אימונים</span>
         </div>
       </div>
 
       <div className="wt-cal">
         <div className="wt-cal-nav">
-          <button className="wt-cal-nav-btn" onClick={() => goMonth(-1)} aria-label="Previous month">
+          <button className="wt-cal-nav-btn" onClick={() => goMonth(-1)} aria-label="חודש קודם">
             <ChevronLeft size={18} />
           </button>
           <span className="wt-cal-month">{monthLabel}</span>
-          <button className="wt-cal-nav-btn" onClick={() => goMonth(1)} aria-label="Next month">
+          <button className="wt-cal-nav-btn" onClick={() => goMonth(1)} aria-label="חודש הבא">
             <ChevronRight size={18} />
           </button>
         </div>
@@ -996,7 +1024,7 @@ function CalendarScreen({ sessions, onBack, onOpenSession }) {
             </div>
           </div>
           {selectedSessions.length === 0 ? (
-            <div className="wt-cal-empty-note">No workout logged this day.</div>
+            <div className="wt-cal-empty-note">לא נרשם אימון ביום הזה.</div>
           ) : (
             selectedSessions.map((s) => {
               const total = PLANS[s.planId].exercises.length;
@@ -1004,8 +1032,8 @@ function CalendarScreen({ sessions, onBack, onOpenSession }) {
               return (
                 <button key={s.planId} className="wt-recent-row" onClick={() => onOpenSession(s)}>
                   <span className="wt-recent-date">{formatDate(s.date)}</span>
-                  <span className="wt-recent-plan">Day {s.planId}</span>
-                  <span className="wt-recent-progress">{done}/{total} logged</span>
+                  <span className="wt-recent-plan">אימון {s.planId}</span>
+                  <span className="wt-recent-progress">{done}/{total} תועדו</span>
                 </button>
               );
             })
@@ -1029,20 +1057,20 @@ function BodyweightLogScreen({ bodyweight, onBack, onChange, onDelete, saveState
   };
 
   const handleDelete = (date) => {
-    if (window.confirm(`Delete the bodyweight entry for ${formatDate(date)}?`)) onDelete(date);
+    if (window.confirm(`למחוק את השקילה מ־${formatDate(date)}?`)) onDelete(date);
   };
 
   return (
     <div className="wt-workout">
       <div className="wt-header">
-        <button className="wt-back" onClick={onBack} aria-label="Back">
+        <button className="wt-back" onClick={onBack} aria-label="חזרה">
           <ArrowLeft size={20} />
         </button>
         <div className="wt-header-mid">
-          <span className="wt-header-plan">Bodyweight log</span>
+          <span className="wt-header-plan">יומן שקילות</span>
         </div>
         <span className={`wt-save-pill ${saveState}`}>
-          {saveState === "saving" ? "Saving…" : saveState === "saved" ? <><Check size={12} strokeWidth={3} /> Saved</> : ""}
+          {saveState === "saving" ? "שומר…" : saveState === "saved" ? <><Check size={12} strokeWidth={3} /> נשמר</> : ""}
         </span>
       </div>
 
@@ -1051,6 +1079,7 @@ function BodyweightLogScreen({ bodyweight, onBack, onChange, onDelete, saveState
           className="wt-input"
           type="date"
           value={newDate}
+          aria-label="תאריך השקילה"
           max={todayStr()}
           onChange={(e) => setNewDate(e.target.value)}
         />
@@ -1058,16 +1087,17 @@ function BodyweightLogScreen({ bodyweight, onBack, onChange, onDelete, saveState
           className="wt-input"
           type="number"
           inputMode="decimal"
-          placeholder="kg"
+          placeholder="ק״ג"
+          aria-label="משקל גוף חדש בק״ג"
           value={newWeight}
           onChange={(e) => setNewWeight(e.target.value)}
         />
-        <button className="wt-bwlog-add-btn" onClick={handleAdd}>Add</button>
+        <button className="wt-bwlog-add-btn" onClick={handleAdd}>הוספה</button>
       </div>
 
       <div className="wt-bwlog-list">
         {sorted.length === 0 ? (
-          <div className="wt-cal-empty-note">No bodyweight entries yet.</div>
+          <div className="wt-cal-empty-note">עדיין אין שקילות.</div>
         ) : (
           sorted.map((b) => (
             <div key={b.date} className="wt-bwlog-row">
@@ -1077,10 +1107,11 @@ function BodyweightLogScreen({ bodyweight, onBack, onChange, onDelete, saveState
                 type="number"
                 inputMode="decimal"
                 value={b.weight}
+                aria-label={`משקל גוף בתאריך ${b.date}`}
                 onChange={(e) => onChange(e.target.value, b.date)}
               />
-              <span className="wt-bwlog-unit">kg</span>
-              <button className="wt-bwlog-delete" onClick={() => handleDelete(b.date)} aria-label="Delete entry">
+              <span className="wt-bwlog-unit">ק״ג</span>
+              <button className="wt-bwlog-delete" onClick={() => handleDelete(b.date)} aria-label="מחיקת שקילה">
                 <Trash2 size={14} />
               </button>
             </div>
@@ -1093,7 +1124,7 @@ function BodyweightLogScreen({ bodyweight, onBack, onChange, onDelete, saveState
 
 function formatDate(d) {
   const date = new Date(d + "T00:00:00");
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return date.toLocaleDateString("he-IL", { month: "short", day: "numeric" });
 }
 
 function formatDuration(ms) {
@@ -1105,13 +1136,13 @@ function formatDuration(ms) {
 }
 
 const COLORS = {
-  bg: "#15161A",
-  bg2: "#1D1F26",
-  bg3: "#262933",
-  text: "#EDEBE4",
-  textDim: "#8B8D96",
-  accent: "#D9A521",
-  accentDim: "rgba(217,165,33,0.16)",
+  bg: "#F7F8FA",
+  bg2: "#FFFFFF",
+  bg3: "#F0F3F5",
+  text: "#19252A",
+  textDim: "#66757D",
+  accent: "#147D77",
+  accentDim: "rgba(20,125,119,0.09)",
 };
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif";
@@ -1152,7 +1183,7 @@ const CSS = `
   .wt-cal-badge { font-size: 8.5px; font-weight: 700; color: ${COLORS.bg}; background: ${COLORS.accent}; width: 12px; height: 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center; line-height: 1; }
   .wt-cal-empty-note { font-size: 12.5px; color: ${COLORS.textDim}; font-style: italic; padding: 8px 2px; }
 
-  .wt-bw-summary { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; background: ${COLORS.bg2}; border-radius: 12px; padding: 12px 16px; border: 1px solid rgba(237,235,228,0.05); }
+  .wt-bw-summary { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; background: ${COLORS.bg2}; border-radius: 12px; padding: 12px 16px; border: 1px solid rgba(31,51,60,0.05); }
   .wt-bw-summary-top { display: flex; align-items: center; justify-content: space-between; }
   .wt-bw-summary-left { display: flex; align-items: center; gap: 10px; }
   .wt-bw-summary-icon { color: ${COLORS.accent}; }
@@ -1162,7 +1193,7 @@ const CSS = `
   .wt-bw-delta.up { color: #C4694F; }
   .wt-bw-delta.down { color: #6FA88A; }
 
-  .wt-bw-trend { border-top: 1px solid rgba(237,235,228,0.06); padding-top: 10px; }
+  .wt-bw-trend { border-top: 1px solid rgba(31,51,60,0.06); padding-top: 10px; }
   .wt-ex-trend { margin-bottom: 12px; }
   .wt-trend-svg { width: 100%; height: 48px; display: block; cursor: pointer; }
   .wt-trend-line { fill: none; stroke: ${COLORS.textDim}; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -1170,13 +1201,13 @@ const CSS = `
   .wt-trend-caption { font-size: 11px; color: ${COLORS.textDim}; text-align: right; margin-top: 4px; }
   .wt-trend-caption strong { color: ${COLORS.text}; font-weight: 700; }
 
-  .wt-bw-card { margin: 4px 16px 0; background: ${COLORS.bg2}; border-radius: 14px; padding: 14px 16px; border: 1px solid rgba(237,235,228,0.05); }
+  .wt-bw-card { margin: 4px 16px 0; background: ${COLORS.bg2}; border-radius: 14px; padding: 14px 16px; border: 1px solid rgba(31,51,60,0.05); }
   .wt-bw-head { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: ${COLORS.textDim}; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
   .wt-bw-input-row { display: flex; align-items: center; gap: 8px; }
   .wt-bw-unit { font-size: 12px; color: ${COLORS.textDim}; flex-shrink: 0; }
 
-  .wt-bw-editlink { justify-content: center; border-top: 1px solid rgba(237,235,228,0.06); padding-top: 10px; width: 100%; }
-  .wt-bw-empty-cta { margin-top: 24px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: ${COLORS.bg2}; border: 1px dashed rgba(237,235,228,0.15); color: ${COLORS.textDim}; font-size: 13px; font-weight: 600; padding: 16px; border-radius: 12px; cursor: pointer; }
+  .wt-bw-editlink { justify-content: center; border-top: 1px solid rgba(31,51,60,0.06); padding-top: 10px; width: 100%; }
+  .wt-bw-empty-cta { margin-top: 24px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: ${COLORS.bg2}; border: 1px dashed rgba(31,51,60,0.15); color: ${COLORS.textDim}; font-size: 13px; font-weight: 600; padding: 16px; border-radius: 12px; cursor: pointer; }
   .wt-bw-empty-cta:active { border-color: ${COLORS.accent}; color: ${COLORS.accent}; }
 
   .wt-bwlog-add { display: flex; gap: 8px; padding: 14px 16px 0; }
@@ -1188,25 +1219,25 @@ const CSS = `
   .wt-bwlog-unit { font-size: 12px; color: ${COLORS.textDim}; flex-shrink: 0; }
   .wt-bwlog-delete { background: none; border: none; color: #C4694F; padding: 6px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; }
 
-  .wt-export { margin-top: 24px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: ${COLORS.bg2}; border: 1px dashed rgba(237,235,228,0.15); color: ${COLORS.textDim}; font-size: 12.5px; font-weight: 600; padding: 12px; border-radius: 12px; cursor: pointer; }
+  .wt-export { margin-top: 24px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: ${COLORS.bg2}; border: 1px dashed rgba(31,51,60,0.15); color: ${COLORS.textDim}; font-size: 12.5px; font-weight: 600; padding: 12px; border-radius: 12px; cursor: pointer; }
   .wt-export:active { border-color: ${COLORS.accent}; color: ${COLORS.accent}; }
-  .wt-backup { margin-top: 24px; padding: 16px; background: ${COLORS.bg2}; border-radius: 12px; border: 1px solid rgba(237,235,228,0.08); }
+  .wt-backup { margin-top: 24px; padding: 16px; background: ${COLORS.bg2}; border-radius: 12px; border: 1px solid rgba(31,51,60,0.08); }
   .wt-backup h2 { margin: 0 0 10px; font-size: 16px; }
   .wt-backup p { color: ${COLORS.textDim}; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
   .wt-backup .wt-backup-reminder { color: ${COLORS.accent}; }
   .wt-backup-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-  .wt-backup-actions button { min-height: 44px; flex: 1 1 130px; padding: 10px; background: ${COLORS.bg3}; border: 1px solid rgba(237,235,228,0.15); border-radius: 8px; color: ${COLORS.text}; font: inherit; font-size: 12px; cursor: pointer; }
+  .wt-backup-actions button { min-height: 44px; flex: 1 1 130px; padding: 10px; background: ${COLORS.bg3}; border: 1px solid rgba(31,51,60,0.15); border-radius: 8px; color: ${COLORS.text}; font: inherit; font-size: 12px; cursor: pointer; }
   .wt-backup-actions button:disabled { opacity: 0.45; cursor: default; }
   .wt-backup-actions button:focus-visible { outline: 2px solid ${COLORS.accent}; outline-offset: 2px; }
   .wt-backup-confirm { margin-top: 12px; border-top: 1px solid ${COLORS.accentDim}; padding-top: 12px; font-size: 13px; }
-  .wt-backup .wt-backup-error { color: #F2A18A; }
+  .wt-backup .wt-backup-error { color: #A93232; }
   .wt-backup-editor { margin-top: 14px; }
   .wt-backup-editor label { display: block; font-size: 12px; margin-bottom: 8px; color: ${COLORS.textDim}; }
-  .wt-backup-editor textarea { display: block; width: 100%; min-height: 140px; resize: vertical; padding: 10px; margin-bottom: 8px; background: ${COLORS.bg3}; border: 1px solid rgba(237,235,228,0.15); border-radius: 8px; color: ${COLORS.text}; font: 13px monospace; }
+  .wt-backup-editor textarea { display: block; width: 100%; min-height: 140px; resize: vertical; padding: 10px; margin-bottom: 8px; background: ${COLORS.bg3}; border: 1px solid rgba(31,51,60,0.15); border-radius: 8px; color: ${COLORS.text}; font: 13px monospace; }
   .wt-backup-editor textarea:focus-visible { outline: 2px solid ${COLORS.accent}; outline-offset: 2px; }
 
   .wt-workout { max-width: 480px; margin: 0 auto; padding-bottom: 40px; }
-  .wt-header { display: flex; align-items: center; gap: 12px; padding: 18px 16px; position: sticky; top: 0; background: ${COLORS.bg}; z-index: 5; border-bottom: 1px solid rgba(237,235,228,0.06); }
+  .wt-header { display: flex; align-items: center; gap: 12px; padding: 18px 16px; position: sticky; top: 0; background: ${COLORS.bg}; z-index: 5; border-bottom: 1px solid rgba(31,51,60,0.06); }
   .wt-back { background: ${COLORS.bg2}; border: none; color: ${COLORS.text}; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
   .wt-header-mid { flex: 1; display: flex; flex-direction: column; }
   .wt-header-plan { font-weight: 800; font-size: 16px; }
@@ -1214,7 +1245,7 @@ const CSS = `
   .wt-save-pill { font-size: 11px; color: ${COLORS.accent}; font-weight: 700; display: flex; align-items: center; gap: 3px; min-width: 56px; justify-content: flex-end; }
 
   .wt-list { padding: 14px 16px 0; display: flex; flex-direction: column; gap: 10px; }
-  .wt-card { background: ${COLORS.bg2}; border-radius: 14px; overflow: hidden; border: 1px solid rgba(237,235,228,0.05); }
+  .wt-card { background: ${COLORS.bg2}; border-radius: 14px; overflow: hidden; border: 1px solid rgba(31,51,60,0.05); }
   .wt-card.open { border-color: ${COLORS.accentDim}; }
   .wt-card-head { width: 100%; background: none; border: none; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: inherit; text-align: left; }
   .wt-card-head-static { cursor: default; }
@@ -1222,7 +1253,7 @@ const CSS = `
   .wt-card-target { font-size: 11.5px; color: ${COLORS.textDim}; display: flex; align-items: center; gap: 5px; }
   .wt-card-head-right { display: flex; align-items: center; gap: 10px; }
   .wt-dots { display: flex; gap: 4px; }
-  .wt-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(237,235,228,0.15); }
+  .wt-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(31,51,60,0.15); }
   .wt-dot.filled { background: ${COLORS.accent}; }
   .wt-chevron { color: ${COLORS.textDim}; transition: transform 0.15s; }
   .wt-card.open .wt-chevron { transform: rotate(180deg); }
@@ -1247,20 +1278,20 @@ const CSS = `
   .wt-sets { display: flex; flex-direction: column; gap: 8px; }
   .wt-set-row { display: flex; align-items: center; gap: 8px; }
   .wt-set-label { font-size: 12px; color: ${COLORS.textDim}; width: 44px; flex-shrink: 0; }
-  .wt-input { background: ${COLORS.bg3}; border: 1px solid rgba(237,235,228,0.08); color: ${COLORS.text}; border-radius: 8px; padding: 10px 10px; font-size: 15px; width: 100%; min-width: 0; }
+  .wt-input { background: ${COLORS.bg3}; border: 1px solid rgba(31,51,60,0.08); color: ${COLORS.text}; border-radius: 8px; padding: 10px 10px; font-size: 15px; width: 100%; min-width: 0; }
   .wt-input:focus { outline: none; border-color: ${COLORS.accent}; }
   .wt-x { color: ${COLORS.textDim}; font-size: 12px; flex-shrink: 0; }
-  .wt-effort-btn { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid rgba(237,235,228,0.15); background: none; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; color: transparent; padding: 0; }
+  .wt-effort-btn { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid rgba(31,51,60,0.15); background: none; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; color: transparent; padding: 0; }
   .wt-effort-btn.easy { border-color: #6FA88A; color: #6FA88A; }
   .wt-effort-btn.ok { border-color: ${COLORS.textDim}; color: ${COLORS.textDim}; }
   .wt-effort-btn.fail { border-color: #C4694F; color: #C4694F; }
   .wt-footer-note { text-align: center; font-size: 11px; color: ${COLORS.textDim}; margin-top: 18px; }
 
   .wt-with-timer { padding-bottom: 104px; }
-  .wt-timer { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); width: calc(100% - 32px); max-width: 448px; background: ${COLORS.bg3}; border: 1px solid rgba(237,235,228,0.08); border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; z-index: 10; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+  .wt-timer { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); width: calc(100% - 32px); max-width: 448px; background: ${COLORS.bg3}; border: 1px solid rgba(31,51,60,0.08); border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; z-index: 10; box-shadow: 0 8px 24px rgba(31,51,60,0.10); }
   .wt-timer.done { border-color: ${COLORS.accent}; }
   .wt-timer-label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: ${COLORS.textDim}; text-transform: uppercase; letter-spacing: 0.06em; flex: 1; }
-  .wt-timer-preset { background: ${COLORS.bg2}; border: 1px solid rgba(237,235,228,0.08); color: ${COLORS.text}; font-weight: 700; font-size: 13px; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+  .wt-timer-preset { background: ${COLORS.bg2}; border: 1px solid rgba(31,51,60,0.08); color: ${COLORS.text}; font-weight: 700; font-size: 13px; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; }
   .wt-timer-preset:active { border-color: ${COLORS.accent}; color: ${COLORS.accent}; }
   .wt-timer-running { flex: 1; display: flex; align-items: center; justify-content: space-between; background: none; border: none; color: inherit; cursor: pointer; padding: 2px 4px; font-family: inherit; }
   .wt-timer-count { font-size: 22px; font-weight: 800; color: ${COLORS.accent}; font-variant-numeric: tabular-nums; }

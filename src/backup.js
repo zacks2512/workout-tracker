@@ -1,5 +1,8 @@
+import { PLANS } from "./workoutPlans.js";
+import { ACTIVITY_TYPES, DEFAULT_SETTINGS, MEAL_IDS } from "./wellness.js";
+
 export const BACKUP_FORMAT = "workout-tracker-backup";
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 export const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
 export const BACKUP_DATE_KEY = "workout-last-backup";
 
@@ -8,20 +11,20 @@ const validDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.
   Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
 const number = (value, max = 10000) => (typeof value === "string" || typeof value === "number") &&
   String(value).trim() !== "" && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= max;
-const invalid = () => { throw new Error("This file is not a valid Workout Tracker backup. Your current data has not changed."); };
+const invalid = () => { throw new Error("זה אינו גיבוי תקין. הנתונים הנוכחיים לא השתנו."); };
 
 // Copy only supported fields; never merge untrusted JSON into application state.
 export function validateData(data) {
   if (!object(data) || !Array.isArray(data.sessions) || !Array.isArray(data.bodyweight)) invalid();
   const sessionKeys = new Set();
   const sessions = data.sessions.map((session) => {
-    if (!object(session) || !validDate(session.date) || !["A", "B", "C"].includes(session.planId) || !object(session.entries)) invalid();
+    if (!object(session) || !validDate(session.date) || !Object.hasOwn(PLANS, session.planId) || !object(session.entries)) invalid();
     const key = `${session.date}:${session.planId}`;
     if (sessionKeys.has(key)) invalid();
     sessionKeys.add(key);
     const entries = {};
     for (const [id, sets] of Object.entries(session.entries)) {
-      if (!new RegExp(`^${session.planId.toLowerCase()}[1-7]$`).test(id) || !Array.isArray(sets) || sets.length > 20) invalid();
+      if (!PLANS[session.planId].exercises.some((exercise) => exercise.id === id) || !Array.isArray(sets) || sets.length > 20) invalid();
       entries[id] = sets.map((set) => {
         if (!object(set) || !(set.weight === "" || number(set.weight)) || !(set.reps === "" || number(set.reps))) invalid();
         if (set.effort != null && !["easy", "ok", "fail"].includes(set.effort)) invalid();
@@ -44,7 +47,29 @@ export function validateData(data) {
     dates.add(entry.date);
     return { date: entry.date, weight: String(entry.weight) };
   });
-  return { sessions, bodyweight };
+  const dailyLogs = {};
+  if (data.dailyLogs !== undefined && !object(data.dailyLogs)) invalid();
+  for (const [date, day] of Object.entries(data.dailyLogs || {})) {
+    if (!validDate(date) || !object(day) || !object(day.meals) || !Array.isArray(day.activities)) invalid();
+    const meals = {};
+    for (const [id, meal] of Object.entries(day.meals)) {
+      if (!MEAL_IDS.includes(id) || !object(meal) || typeof meal.done !== "boolean" || typeof meal.note !== "string" || meal.note.length > 2000) invalid();
+      meals[id] = { done: meal.done, note: meal.note };
+    }
+    const ids = new Set();
+    const activities = day.activities.map((activity) => {
+      if (!object(activity) || typeof activity.id !== "string" || !activity.id || activity.id.length > 100 || ids.has(activity.id) ||
+        !ACTIVITY_TYPES.includes(activity.type) || typeof activity.minutes !== "number" || !number(activity.minutes, 600) || activity.minutes <= 0 ||
+        typeof activity.createdAt !== "number" || !Number.isFinite(activity.createdAt) || activity.createdAt < 0) invalid();
+      ids.add(activity.id);
+      return { id: activity.id, type: activity.type, minutes: activity.minutes, createdAt: activity.createdAt };
+    });
+    dailyLogs[date] = { meals, activities };
+  }
+  if (data.settings !== undefined && !object(data.settings)) invalid();
+  const settings = data.settings || DEFAULT_SETTINGS;
+  if (typeof settings.targetWeight !== "number" || !number(settings.targetWeight, 1000) || settings.targetWeight <= 0 || !validDate(settings.targetDate)) invalid();
+  return { sessions, bodyweight, dailyLogs, settings: { targetWeight: settings.targetWeight, targetDate: settings.targetDate } };
 }
 
 export function createBackup(data, exportedAt = new Date().toISOString()) {
@@ -55,9 +80,10 @@ export function parseBackup(text) {
   let backup;
   try { backup = JSON.parse(text); } catch { invalid(); }
   if (!object(backup) || backup.format !== BACKUP_FORMAT) invalid();
-  if (backup.version !== BACKUP_VERSION) throw new Error("This backup version is not supported. Your current data has not changed.");
+  if (![1, BACKUP_VERSION].includes(backup.version)) throw new Error("גרסת הגיבוי אינה נתמכת. הנתונים הנוכחיים לא השתנו.");
+  if (backup.version === 2 && (!object(backup.data?.dailyLogs) || !object(backup.data?.settings))) invalid();
   if (typeof backup.exportedAt !== "string" || !Number.isFinite(Date.parse(backup.exportedAt))) invalid();
-  return { ...validateData(backup.data), exportedAt: backup.exportedAt };
+  return { ...validateData(backup.data), exportedAt: backup.exportedAt, version: backup.version };
 }
 
 export function backupIsDue(lastExport, now = Date.now()) {
