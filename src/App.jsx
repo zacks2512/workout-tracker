@@ -372,7 +372,7 @@ export default function WorkoutTracker() {
       {screen === "today" ? (
         <TodayScreen dailyLogs={dailyLogs} settings={settings} bodyweight={bodyweight} sessions={sessions}
           onUpdateDay={updateDay} onSettings={() => setScreen("settings")} onWeight={openWeightLog}
-          onWorkout={() => openPlan(new Date().getDay() === 3 ? "E" : "D")} />
+          onWorkout={() => setScreen("home")} />
       ) : screen === "progress" ? (
         <ProgressScreen dailyLogs={dailyLogs} settings={settings} sessions={sessions} bodyweight={bodyweight} onWeight={openWeightLog} onHistory={openCalendar} />
       ) : screen === "prep" ? <PrepScreen /> : screen === "settings" ? (
@@ -450,20 +450,19 @@ function HomeScreen({ onPick, recentSessions, bodyweight, onExport, copyState, h
 
   return (
     <div className="wt-home">
-      <div className="wt-eyebrow">שני אימונים בשבוע • עד שעה</div>
+      <div className="wt-eyebrow">תוכניות אימון מובנות • לבחירתך</div>
       <h1 className="wt-title">האימונים שלי</h1>
       <div className="wt-plate-row">
         {ACTIVE_PLANS.map((id) => PLANS[id]).map((p) => (
           <button key={p.id} className="wt-plate" onClick={() => onPick(p.id)}>
             <span className="wt-plate-ring">
-              <span className="wt-plate-letter">{p.id === "D" ? "שני" : "רביעי"}</span>
+              <span className="wt-plate-letter">{p.id}</span>
             </span>
             <span className="wt-plate-sub">{p.subtitle}</span>
           </button>
         ))}
       </div>
 
-      <details className="legacy-plans"><summary>תוכניות קודמות A / B / C</summary><div className="activity-types">{["A", "B", "C"].map((id) => <button className="secondary" key={id} onClick={() => onPick(id)}>תוכנית {id}</button>)}</div></details>
       {latestBW ? (
         <div className="wt-bw-summary">
           <div className="wt-bw-summary-top">
