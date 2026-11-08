@@ -22,7 +22,7 @@ test("rejects malformed JSON and unrelated JSON", () => {
 });
 test("rejects unknown versions and missing export date", () => {
   const backup = JSON.parse(encode(sample()));
-  assert.throws(() => parseBackup(JSON.stringify({ ...backup, version: 2 })), /version/);
+  assert.throws(() => parseBackup(JSON.stringify({ ...backup, version: 3 })), /גרסת/);
   assert.throws(() => parseBackup(JSON.stringify({ ...backup, exportedAt: null })));
 });
 test("rejects unsafe dates, numeric values, plans, exercises and duplicate records", () => {
