@@ -1200,6 +1200,10 @@ const CSS = `
   .wt-backup-actions button:focus-visible { outline: 2px solid ${COLORS.accent}; outline-offset: 2px; }
   .wt-backup-confirm { margin-top: 12px; border-top: 1px solid ${COLORS.accentDim}; padding-top: 12px; font-size: 13px; }
   .wt-backup .wt-backup-error { color: #F2A18A; }
+  .wt-backup-editor { margin-top: 14px; }
+  .wt-backup-editor label { display: block; font-size: 12px; margin-bottom: 8px; color: ${COLORS.textDim}; }
+  .wt-backup-editor textarea { display: block; width: 100%; min-height: 140px; resize: vertical; padding: 10px; margin-bottom: 8px; background: ${COLORS.bg3}; border: 1px solid rgba(237,235,228,0.15); border-radius: 8px; color: ${COLORS.text}; font: 13px monospace; }
+  .wt-backup-editor textarea:focus-visible { outline: 2px solid ${COLORS.accent}; outline-offset: 2px; }
 
   .wt-workout { max-width: 480px; margin: 0 auto; padding-bottom: 40px; }
   .wt-header { display: flex; align-items: center; gap: 12px; padding: 18px 16px; position: sticky; top: 0; background: ${COLORS.bg}; z-index: 5; border-bottom: 1px solid rgba(237,235,228,0.06); }
