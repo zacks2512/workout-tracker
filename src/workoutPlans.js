@@ -51,4 +51,5 @@ const fullBody = (prefix) => [
 ];
 PLANS.D = { id: "D", subtitle: "אימון גוף מלא • שני", exercises: fullBody("d") };
 PLANS.E = { id: "E", subtitle: "אימון גוף מלא • רביעי", exercises: fullBody("e") };
-export const ACTIVE_PLANS = ["D", "E"];
+// Retain D/E definitions only so any already recorded sessions remain readable.
+export const ACTIVE_PLANS = ["A", "B", "C"];
